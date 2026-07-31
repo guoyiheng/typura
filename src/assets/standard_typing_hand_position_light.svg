@@ -1,0 +1,428 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" width="100%" height="100%">
+  <defs>
+    <!-- Key Styles & Colors (Transparent Integrated Light) -->
+    <!-- LP: Left Pinky Rose -->
+    <!-- LR: Left Ring Orange -->
+    <!-- LM: Left Middle Yellow -->
+    <!-- LI: Left Index Emerald -->
+    <!-- TB: Thumbs Cyan -->
+    <!-- RI: Right Index Blue -->
+    <!-- RM: Right Middle Indigo -->
+    <!-- RR: Right Ring Purple -->
+    <!-- RP: Right Pinky Pink -->
+    <style>
+      .key { rx: 7px; ry: 7px; stroke-width: 1.5px; transition: all 0.2s; }
+      .k-lp { fill: rgba(254, 205, 211, 0.45); stroke: #FB7185; }
+      .k-lr { fill: rgba(255, 237, 213, 0.45); stroke: #FB923C; }
+      .k-lm { fill: rgba(254, 249, 195, 0.45); stroke: #FACC15; }
+      .k-li { fill: rgba(209, 250, 229, 0.45); stroke: #34D399; }
+      .k-tb { fill: rgba(207, 250, 254, 0.45); stroke: #22D3EE; }
+      .k-ri { fill: rgba(219, 234, 254, 0.45); stroke: #60A5FA; }
+      .k-rm { fill: rgba(224, 231, 255, 0.45); stroke: #818CF8; }
+      .k-rr { fill: rgba(243, 232, 255, 0.45); stroke: #C084FC; }
+      .k-rp { fill: rgba(252, 231, 243, 0.45); stroke: #F472B6; }
+
+      .txt-main { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 700; font-size: 15px; text-anchor: middle; dominant-baseline: central; }
+      .txt-sub { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 600; font-size: 11px; text-anchor: middle; dominant-baseline: central; }
+
+      .t-lp { fill: #9F1239; }
+      .t-lr { fill: #9A3412; }
+      .t-lm { fill: #854D0E; }
+      .t-li { fill: #065F46; }
+      .t-tb { fill: #155E75; }
+      .t-ri { fill: #1E40AF; }
+      .t-rm { fill: #3730A3; }
+      .t-rr { fill: #6B21A8; }
+      .t-rp { fill: #9D174D; }
+
+      .home-glow { filter: drop-shadow(0px 2px 5px rgba(0,0,0,0.06)); }
+      .hand-line { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .finger-dot { r: 5px; stroke-width: 2px; fill: #FFFFFF; }
+    </style>
+
+    <!-- Hand Gradients Light -->
+    <linearGradient id="hand-left-light" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0284C7" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#0284C7" stop-opacity="0.02"/>
+    </linearGradient>
+    <linearGradient id="hand-right-light" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#4F46E5" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#4F46E5" stop-opacity="0.02"/>
+    </linearGradient>
+
+    <!-- Soft Drop Shadow -->
+    <filter id="shadow-light" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#0F172A" flood-opacity="0.06"/>
+    </filter>
+  </defs>
+
+  <!-- Transparent Canvas (Integrated with modal background) -->
+  <rect width="1000" height="560" rx="16" fill="none"/>
+
+  <!-- Home Row Tip Badge -->
+  <g transform="translate(713, 22)">
+    <rect x="0" y="0" width="234" height="34" rx="17" fill="rgba(255, 255, 255, 0.75)" stroke="rgba(203, 213, 225, 0.8)" stroke-width="1" filter="url(#shadow-light)"/>
+    <circle cx="18" cy="17" r="5" fill="#10B981"/>
+    <text x="32" y="21" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#334155">基准键位: A S D F / J K L ;</text>
+  </g>
+
+  <!-- KEYBOARD CHASSIS -->
+  <rect x="43" y="70" width="914" height="300" rx="16" fill="rgba(255, 255, 255, 0.65)" stroke="rgba(203, 213, 225, 0.7)" stroke-width="1.5" filter="url(#shadow-light)"/>
+
+  <!-- ==================== ROW 0 (Y: 82) ==================== -->
+  <!-- ~ ` -->
+  <rect x="53" y="82" width="54" height="48" class="key k-lp"/>
+  <text x="80" y="106" class="txt-main t-lp">` ~</text>
+
+  <!-- 1 ! -->
+  <rect x="113" y="82" width="54" height="48" class="key k-lp"/>
+  <text x="140" y="106" class="txt-main t-lp">1</text>
+
+  <!-- 2 @ -->
+  <rect x="173" y="82" width="54" height="48" class="key k-lr"/>
+  <text x="200" y="106" class="txt-main t-lr">2</text>
+
+  <!-- 3 # -->
+  <rect x="233" y="82" width="54" height="48" class="key k-lm"/>
+  <text x="260" y="106" class="txt-main t-lm">3</text>
+
+  <!-- 4 $ -->
+  <rect x="293" y="82" width="54" height="48" class="key k-li"/>
+  <text x="320" y="106" class="txt-main t-li">4</text>
+
+  <!-- 5 % -->
+  <rect x="353" y="82" width="54" height="48" class="key k-li"/>
+  <text x="380" y="106" class="txt-main t-li">5</text>
+
+  <!-- 6 ^ -->
+  <rect x="413" y="82" width="54" height="48" class="key k-ri"/>
+  <text x="440" y="106" class="txt-main t-ri">6</text>
+
+  <!-- 7 & -->
+  <rect x="473" y="82" width="54" height="48" class="key k-ri"/>
+  <text x="500" y="106" class="txt-main t-ri">7</text>
+
+  <!-- 8 * -->
+  <rect x="533" y="82" width="54" height="48" class="key k-rm"/>
+  <text x="560" y="106" class="txt-main t-rm">8</text>
+
+  <!-- 9 ( -->
+  <rect x="593" y="82" width="54" height="48" class="key k-rr"/>
+  <text x="620" y="106" class="txt-main t-rr">9</text>
+
+  <!-- 0 ) -->
+  <rect x="653" y="82" width="54" height="48" class="key k-rp"/>
+  <text x="680" y="106" class="txt-main t-rp">0</text>
+
+  <!-- - _ -->
+  <rect x="713" y="82" width="54" height="48" class="key k-rp"/>
+  <text x="740" y="106" class="txt-main t-rp">-</text>
+
+  <!-- = + -->
+  <rect x="773" y="82" width="54" height="48" class="key k-rp"/>
+  <text x="800" y="106" class="txt-main t-rp">=</text>
+
+  <!-- Backspace -->
+  <rect x="833" y="82" width="114" height="48" class="key k-rp"/>
+  <text x="890" y="106" class="txt-sub t-rp">Backspace</text>
+
+
+  <!-- ==================== ROW 1 (Y: 136) ==================== -->
+  <!-- Tab -->
+  <rect x="53" y="136" width="84" height="48" class="key k-lp"/>
+  <text x="95" y="160" class="txt-sub t-lp">Tab</text>
+
+  <!-- Q -->
+  <rect x="143" y="136" width="54" height="48" class="key k-lp"/>
+  <text x="170" y="160" class="txt-main t-lp">Q</text>
+
+  <!-- W -->
+  <rect x="203" y="136" width="54" height="48" class="key k-lr"/>
+  <text x="230" y="160" class="txt-main t-lr">W</text>
+
+  <!-- E -->
+  <rect x="263" y="136" width="54" height="48" class="key k-lm"/>
+  <text x="290" y="160" class="txt-main t-lm">E</text>
+
+  <!-- R -->
+  <rect x="323" y="136" width="54" height="48" class="key k-li"/>
+  <text x="350" y="160" class="txt-main t-li">R</text>
+
+  <!-- T -->
+  <rect x="383" y="136" width="54" height="48" class="key k-li"/>
+  <text x="410" y="160" class="txt-main t-li">T</text>
+
+  <!-- Y -->
+  <rect x="443" y="136" width="54" height="48" class="key k-ri"/>
+  <text x="470" y="160" class="txt-main t-ri">Y</text>
+
+  <!-- U -->
+  <rect x="503" y="136" width="54" height="48" class="key k-ri"/>
+  <text x="530" y="160" class="txt-main t-ri">U</text>
+
+  <!-- I -->
+  <rect x="563" y="136" width="54" height="48" class="key k-rm"/>
+  <text x="590" y="160" class="txt-main t-rm">I</text>
+
+  <!-- O -->
+  <rect x="623" y="136" width="54" height="48" class="key k-rr"/>
+  <text x="650" y="160" class="txt-main t-rr">O</text>
+
+  <!-- P -->
+  <rect x="683" y="136" width="54" height="48" class="key k-rp"/>
+  <text x="710" y="160" class="txt-main t-rp">P</text>
+
+  <!-- [ { -->
+  <rect x="743" y="136" width="54" height="48" class="key k-rp"/>
+  <text x="770" y="160" class="txt-main t-rp">[</text>
+
+  <!-- ] } -->
+  <rect x="803" y="136" width="54" height="48" class="key k-rp"/>
+  <text x="830" y="160" class="txt-main t-rp">]</text>
+
+  <!-- \ | -->
+  <rect x="863" y="136" width="84" height="48" class="key k-rp"/>
+  <text x="905" y="160" class="txt-main t-rp">\</text>
+
+
+  <!-- ==================== ROW 2 (Y: 190) [HOME ROW] ==================== -->
+  <!-- Caps Lock -->
+  <rect x="53" y="190" width="99" height="48" class="key k-lp"/>
+  <text x="102" y="214" class="txt-sub t-lp">Caps</text>
+
+  <!-- A [HOME PINKY] -->
+  <rect x="158" y="190" width="54" height="48" class="key k-lp home-glow" stroke-width="2"/>
+  <text x="185" y="214" class="txt-main t-lp" font-size="17">A</text>
+  <circle cx="185" cy="230" r="2.5" fill="#E11D48"/>
+
+  <!-- S [HOME RING] -->
+  <rect x="218" y="190" width="54" height="48" class="key k-lr home-glow" stroke-width="2"/>
+  <text x="245" y="214" class="txt-main t-lr" font-size="17">S</text>
+  <circle cx="245" cy="230" r="2.5" fill="#EA580C"/>
+
+  <!-- D [HOME MIDDLE] -->
+  <rect x="278" y="190" width="54" height="48" class="key k-lm home-glow" stroke-width="2"/>
+  <text x="305" y="214" class="txt-main t-lm" font-size="17">D</text>
+  <circle cx="305" cy="230" r="2.5" fill="#CA8A04"/>
+
+  <!-- F [HOME INDEX BUMP] -->
+  <rect x="338" y="190" width="54" height="48" class="key k-li home-glow" stroke-width="2.5"/>
+  <text x="365" y="214" class="txt-main t-li" font-size="18">F</text>
+  <rect x="357" y="229" width="16" height="3" rx="1.5" fill="#059669"/>
+
+  <!-- G -->
+  <rect x="398" y="190" width="54" height="48" class="key k-li"/>
+  <text x="425" y="214" class="txt-main t-li">G</text>
+
+  <!-- H -->
+  <rect x="458" y="190" width="54" height="48" class="key k-ri"/>
+  <text x="485" y="214" class="txt-main t-ri">H</text>
+
+  <!-- J [HOME INDEX BUMP] -->
+  <rect x="518" y="190" width="54" height="48" class="key k-ri home-glow" stroke-width="2.5"/>
+  <text x="545" y="214" class="txt-main t-ri" font-size="18">J</text>
+  <rect x="537" y="229" width="16" height="3" rx="1.5" fill="#2563EB"/>
+
+  <!-- K [HOME MIDDLE] -->
+  <rect x="578" y="190" width="54" height="48" class="key k-rm home-glow" stroke-width="2"/>
+  <text x="605" y="214" class="txt-main t-rm" font-size="17">K</text>
+  <circle cx="605" cy="230" r="2.5" fill="#4F46E5"/>
+
+  <!-- L [HOME RING] -->
+  <rect x="638" y="190" width="54" height="48" class="key k-rr home-glow" stroke-width="2"/>
+  <text x="665" y="214" class="txt-main t-rr" font-size="17">L</text>
+  <circle cx="665" cy="230" r="2.5" fill="#9333EA"/>
+
+  <!-- ; [HOME PINKY] -->
+  <rect x="698" y="190" width="54" height="48" class="key k-rp home-glow" stroke-width="2"/>
+  <text x="725" y="214" class="txt-main t-rp" font-size="17">;</text>
+  <circle cx="725" cy="230" r="2.5" fill="#DB2777"/>
+
+  <!-- ' -->
+  <rect x="758" y="190" width="54" height="48" class="key k-rp"/>
+  <text x="785" y="214" class="txt-main t-rp">'</text>
+
+  <!-- Enter -->
+  <rect x="818" y="190" width="129" height="48" class="key k-rp"/>
+  <text x="882" y="214" class="txt-sub t-rp">Enter</text>
+
+
+  <!-- ==================== ROW 3 (Y: 244) ==================== -->
+  <!-- Left Shift -->
+  <rect x="53" y="244" width="129" height="48" class="key k-lp"/>
+  <text x="117" y="268" class="txt-sub t-lp">Shift</text>
+
+  <!-- Z -->
+  <rect x="188" y="244" width="54" height="48" class="key k-lp"/>
+  <text x="215" y="268" class="txt-main t-lp">Z</text>
+
+  <!-- X -->
+  <rect x="248" y="244" width="54" height="48" class="key k-lr"/>
+  <text x="275" y="268" class="txt-main t-lr">X</text>
+
+  <!-- C -->
+  <rect x="308" y="244" width="54" height="48" class="key k-lm"/>
+  <text x="335" y="268" class="txt-main t-lm">C</text>
+
+  <!-- V -->
+  <rect x="368" y="244" width="54" height="48" class="key k-li"/>
+  <text x="395" y="268" class="txt-main t-li">V</text>
+
+  <!-- B -->
+  <rect x="428" y="244" width="54" height="48" class="key k-li"/>
+  <text x="455" y="268" class="txt-main t-li">B</text>
+
+  <!-- N -->
+  <rect x="488" y="244" width="54" height="48" class="key k-ri"/>
+  <text x="515" y="268" class="txt-main t-ri">N</text>
+
+  <!-- M -->
+  <rect x="548" y="244" width="54" height="48" class="key k-ri"/>
+  <text x="575" y="268" class="txt-main t-ri">M</text>
+
+  <!-- , < -->
+  <rect x="608" y="244" width="54" height="48" class="key k-rm"/>
+  <text x="635" y="268" class="txt-main t-rm">,</text>
+
+  <!-- . > -->
+  <rect x="668" y="244" width="54" height="48" class="key k-rr"/>
+  <text x="695" y="268" class="txt-main t-rr">.</text>
+
+  <!-- / ? -->
+  <rect x="728" y="244" width="54" height="48" class="key k-rp"/>
+  <text x="755" y="268" class="txt-main t-rp">/</text>
+
+  <!-- Right Shift -->
+  <rect x="788" y="244" width="159" height="48" class="key k-rp"/>
+  <text x="867" y="268" class="txt-sub t-rp">Shift</text>
+
+
+  <!-- ==================== ROW 4 (Y: 298) ==================== -->
+  <!-- Ctrl -->
+  <rect x="53" y="298" width="69" height="48" class="key k-lp"/>
+  <text x="87" y="322" class="txt-sub t-lp">Ctrl</text>
+
+  <!-- Win/Cmd -->
+  <rect x="128" y="298" width="54" height="48" class="key k-lp"/>
+  <text x="155" y="322" class="txt-sub t-lp">Win</text>
+
+  <!-- Alt -->
+  <rect x="188" y="298" width="69" height="48" class="key k-tb"/>
+  <text x="222" y="322" class="txt-sub t-tb">Alt</text>
+
+  <!-- Spacebar -->
+  <rect x="263" y="298" width="378" height="48" class="key k-tb home-glow"/>
+  <text x="452" y="322" class="txt-sub t-tb" font-size="13" font-weight="700">Spacebar ( 大拇指 )</text>
+
+  <!-- Alt -->
+  <rect x="647" y="298" width="69" height="48" class="key k-tb"/>
+  <text x="681" y="322" class="txt-sub t-tb">Alt</text>
+
+  <!-- Win -->
+  <rect x="722" y="298" width="54" height="48" class="key k-rp"/>
+  <text x="749" y="322" class="txt-sub t-rp">Win</text>
+
+  <!-- Menu -->
+  <rect x="782" y="298" width="54" height="48" class="key k-rp"/>
+  <text x="809" y="322" class="txt-sub t-rp">Menu</text>
+
+  <!-- Ctrl -->
+  <rect x="842" y="298" width="105" height="48" class="key k-rp"/>
+  <text x="894" y="322" class="txt-sub t-rp">Ctrl</text>
+
+
+  <!-- ==================== HANDS & FINGERS SILHOUETTE ==================== -->
+  <!-- LEFT HAND CONNECTION LINES & DOTS -->
+  <g stroke-width="2" opacity="0.9">
+    <!-- Left Pinky -> A (185, 230) -->
+    <path d="M185 232 L185 380 C185 420 160 450 140 470" class="hand-line" stroke="#FB7185"/>
+    <circle cx="185" cy="232" class="finger-dot" stroke="#FB7185"/>
+
+    <!-- Left Ring -> S (245, 230) -->
+    <path d="M245 232 L245 370 C245 415 210 450 190 470" class="hand-line" stroke="#FB923C"/>
+    <circle cx="245" cy="232" class="finger-dot" stroke="#FB923C"/>
+
+    <!-- Left Middle -> D (305, 230) -->
+    <path d="M305 232 L305 365 C305 410 270 450 250 475" class="hand-line" stroke="#EAB308"/>
+    <circle cx="305" cy="232" class="finger-dot" stroke="#EAB308"/>
+
+    <!-- Left Index -> F (365, 230) -->
+    <path d="M365 232 L365 375 C365 415 330 455 300 475" class="hand-line" stroke="#34D399"/>
+    <circle cx="365" cy="232" class="finger-dot" stroke="#34D399"/>
+
+    <!-- Left Thumb -> Space (380, 322) -->
+    <path d="M380 322 L380 395 C380 425 360 450 340 470" class="hand-line" stroke="#22D3EE"/>
+    <circle cx="380" cy="322" class="finger-dot" stroke="#22D3EE"/>
+
+    <!-- Left Palm Contour -->
+    <path d="M130 475 Q 230 505 350 475 L320 510 Q 220 525 120 490 Z" fill="url(#hand-left-light)" stroke="#0284C7" stroke-opacity="0.3" stroke-width="1"/>
+    <text x="230" y="498" font-family="system-ui, sans-serif" font-size="12" font-weight="700" fill="#0284C7" text-anchor="middle">左 手</text>
+  </g>
+
+  <!-- RIGHT HAND CONNECTION LINES & DOTS -->
+  <g stroke-width="2" opacity="0.9">
+    <!-- Right Thumb -> Space (524, 322) -->
+    <path d="M524 322 L524 395 C524 425 544 450 660 470" class="hand-line" stroke="#22D3EE"/>
+    <circle cx="524" cy="322" class="finger-dot" stroke="#22D3EE"/>
+
+    <!-- Right Index -> J (545, 230) -->
+    <path d="M545 232 L545 375 C545 415 580 455 700 475" class="hand-line" stroke="#60A5FA"/>
+    <circle cx="545" cy="232" class="finger-dot" stroke="#60A5FA"/>
+
+    <!-- Right Middle -> K (605, 230) -->
+    <path d="M605 232 L605 365 C605 410 640 450 750 475" class="hand-line" stroke="#818CF8"/>
+    <circle cx="605" cy="232" class="finger-dot" stroke="#818CF8"/>
+
+    <!-- Right Ring -> L (665, 230) -->
+    <path d="M665 232 L665 370 C665 415 700 450 810 470" class="hand-line" stroke="#C084FC"/>
+    <circle cx="665" cy="232" class="finger-dot" stroke="#C084FC"/>
+
+    <!-- Right Pinky -> ; (725, 230) -->
+    <path d="M725 232 L725 380 C725 420 750 450 860 470" class="hand-line" stroke="#F472B6"/>
+    <circle cx="725" cy="232" class="finger-dot" stroke="#F472B6"/>
+
+    <!-- Right Palm Contour -->
+    <path d="M650 475 Q 770 505 870 475 L880 490 Q 780 525 640 510 Z" fill="url(#hand-right-light)" stroke="#4F46E5" stroke-opacity="0.3" stroke-width="1"/>
+    <text x="760" y="498" font-family="system-ui, sans-serif" font-size="12" font-weight="700" fill="#4F46E5" text-anchor="middle">右 手</text>
+  </g>
+
+
+  <!-- ==================== LEGEND SECTION (BOTTOM BAR) ==================== -->
+  <g transform="translate(43, 522)">
+    <!-- Legend Item: Left Pinky -->
+    <rect x="0" y="0" width="12" height="12" rx="3" fill="#FB7185"/>
+    <text x="18" y="10" font-family="system-ui, sans-serif" font-size="11" font-weight="700" fill="#334155">左小指</text>
+
+    <!-- Legend Item: Left Ring -->
+    <rect x="75" y="0" width="12" height="12" rx="3" fill="#FB923C"/>
+    <text x="93" y="10" font-family="system-ui, sans-serif" font-size="11" font-weight="700" fill="#334155">左无名指</text>
+
+    <!-- Legend Item: Left Middle -->
+    <rect x="162" y="0" width="12" height="12" rx="3" fill="#EAB308"/>
+    <text x="180" y="10" font-family="system-ui, sans-serif" font-size="11" font-weight="700" fill="#334155">左中指</text>
+
+    <!-- Legend Item: Left Index -->
+    <rect x="237" y="0" width="12" height="12" rx="3" fill="#34D399"/>
+    <text x="255" y="10" font-family="system-ui, sans-serif" font-size="11" font-weight="700" fill="#334155">左食指</text>
+
+    <!-- Legend Item: Thumbs -->
+    <rect x="390" y="0" width="12" height="12" rx="3" fill="#22D3EE"/>
+    <text x="408" y="10" font-family="system-ui, sans-serif" font-size="11" font-weight="800" fill="#0284C7">大拇指 (Space)</text>
+
+    <!-- Legend Item: Right Index -->
+    <rect x="585" y="0" width="12" height="12" rx="3" fill="#60A5FA"/>
+    <text x="603" y="10" font-family="system-ui, sans-serif" font-size="11" font-weight="700" fill="#334155">右食指</text>
+
+    <!-- Legend Item: Right Middle -->
+    <rect x="660" y="0" width="12" height="12" rx="3" fill="#818CF8"/>
+    <text x="678" y="10" font-family="system-ui, sans-serif" font-size="11" font-weight="700" fill="#334155">右中指</text>
+
+    <!-- Legend Item: Right Ring -->
+    <rect x="735" y="0" width="12" height="12" rx="3" fill="#C084FC"/>
+    <text x="753" y="10" font-family="system-ui, sans-serif" font-size="11" font-weight="700" fill="#334155">右无名指</text>
+
+    <!-- Legend Item: Right Pinky -->
+    <rect x="822" y="0" width="12" height="12" rx="3" fill="#F472B6"/>
+    <text x="840" y="10" font-family="system-ui, sans-serif" font-size="11" font-weight="700" fill="#334155">右小指</text>
+  </g>
+</svg>

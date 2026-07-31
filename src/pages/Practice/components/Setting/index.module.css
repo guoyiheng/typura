@@ -1,0 +1,55 @@
+@reference '../../../../index.css';
+
+.tab-content {
+  @apply flex w-full flex-col items-stretch justify-start gap-6 px-4 pt-5 pb-14 sm:gap-8 sm:px-7 sm:pt-7 sm:pb-20;
+}
+
+.section {
+  @apply flex w-full flex-col items-stretch gap-4 border-b border-[var(--line)] pb-6 last:border-b-0;
+}
+.section-label {
+  @apply m-0 text-xl font-semibold text-[var(--ink)];
+  font-family: 'Newsreader', 'Songti SC', serif;
+}
+.section-description {
+  @apply mt-1 text-left text-xs leading-5 font-normal text-[var(--muted)];
+}
+
+.block {
+  @apply flex w-full flex-col items-start gap-2 py-0;
+}
+.block-label {
+  @apply text-sm font-medium text-[var(--body)];
+}
+.switch-block {
+  composes: block;
+  @apply flex-row items-center justify-between;
+}
+
+.setting-list {
+  @apply flex w-full flex-col divide-y divide-[var(--line)];
+}
+
+.setting-row {
+  @apply flex min-h-[68px] w-full items-center justify-between gap-6 py-3 first:pt-0 last:pb-0;
+}
+
+.row-copy {
+  @apply flex min-w-0 flex-1 flex-col gap-1;
+}
+
+.row-description {
+  @apply text-xs leading-5 text-[var(--muted)];
+}
+
+.slider-row {
+  @apply flex w-full flex-col gap-1 py-4 first:pt-0 last:pb-0;
+}
+
+.slider-header {
+  @apply flex items-center justify-between gap-4;
+}
+
+.value-label {
+  @apply min-w-12 rounded bg-[var(--surface-soft)] px-2 py-1 text-right text-xs font-semibold text-[var(--body)] tabular-nums;
+}

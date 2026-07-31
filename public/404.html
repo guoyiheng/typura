@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-Hans">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#397a50" />
+    <title>找不到页面 - Typura 纯键</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --canvas: #faf9f5;
+        --ink: #171714;
+        --muted: #77736b;
+        --line: #e5e0d7;
+        --primary: #397a50;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        background: var(--canvas);
+        color: var(--ink);
+        font-family: 'PingFang SC', 'Segoe UI', sans-serif;
+      }
+
+      main {
+        display: grid;
+        min-height: 100vh;
+        place-items: center;
+        padding: 24px;
+      }
+
+      section {
+        width: min(100%, 520px);
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+        padding: 40px 0 44px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .brand img {
+        width: 40px;
+        height: 40px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 4px;
+        background: #fffefa;
+      }
+
+      .brand strong {
+        font-size: 18px;
+      }
+      .eyebrow {
+        margin: 56px 0 10px;
+        color: var(--primary);
+        font-size: 12px;
+        font-weight: 700;
+      }
+      h1 {
+        margin: 0;
+        font-family: Georgia, serif;
+        font-size: 48px;
+        font-weight: 400;
+        line-height: 1;
+      }
+      p {
+        max-width: 34ch;
+        margin: 20px 0 28px;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.7;
+      }
+      a {
+        display: inline-flex;
+        min-height: 42px;
+        align-items: center;
+        border-radius: 8px;
+        background: var(--primary);
+        padding: 0 18px;
+        color: #fbfcff;
+        font-size: 14px;
+        font-weight: 600;
+        text-decoration: none;
+      }
+      a:hover {
+        background: #2e6441;
+      }
+
+      @media (min-width: 640px) {
+        h1 {
+          font-size: 64px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section>
+        <div class="brand">
+          <img src="/typura-mark.svg" alt="" />
+          <strong>Typura 纯键</strong>
+        </div>
+        <p class="eyebrow">404 / 页面不存在</p>
+        <h1>走错了一步。</h1>
+        <p>这个地址没有对应的练习内容。回到练习工作台，继续你的节奏。</p>
+        <a href="/">返回练习</a>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,8 @@
+build
+node_modules
+public/dicts
+stats.html
+TODO.md
+CLAUDE.md
+worker-configuration.d.ts
+.wrangler
