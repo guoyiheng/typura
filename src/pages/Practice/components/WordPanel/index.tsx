@@ -1,5 +1,5 @@
 import { PracticeActionType, PracticeContext } from '../../store'
-import MnemonicCard from './components/MnemonicCard'
+import MnemonicDetails from './components/MnemonicDetails'
 import Phonetic from './components/Phonetic'
 import Translation from './components/Translation'
 import WordComponent from './components/Word'
@@ -229,7 +229,7 @@ export default function WordPanel() {
   const shouldShowTranslation = useMemo(() => {
     return isTranslationHovered || state.isTransVisible
   }, [isTranslationHovered, state.isTransVisible])
-  const shouldShowMnemonicCard = isZenMode && languageCategory === 'en' && (!dictationSettings.isOpen || isWordComplete)
+  const shouldShowMnemonicDetails = languageCategory === 'en' && (!dictationSettings.isOpen || isWordComplete)
 
   return (
     <div className="relative container flex h-full w-full flex-col items-center justify-center">
@@ -254,11 +254,7 @@ export default function WordPanel() {
                 </div>
               </div>
             )}
-            <div
-              className={`relative mx-auto flex w-full max-w-xl flex-col items-center justify-center px-4 ${
-                isZenMode ? 'md:max-w-[760px]' : 'md:max-w-2xl'
-              }`}
-            >
+            <div className="relative mx-auto flex w-full max-w-xl flex-col items-center justify-center px-4 md:max-w-[760px]">
               <WordComponent
                 word={activeWord}
                 onFinish={completeCurrentWord}
@@ -318,7 +314,7 @@ export default function WordPanel() {
                   )}
                 </div>
               )}
-              {(!isZenMode || languageCategory !== 'en') && (
+              {languageCategory !== 'en' && (
                 <Translation
                   trans={activeWord.trans}
                   showTrans={shouldShowTranslation}
@@ -326,7 +322,16 @@ export default function WordPanel() {
                   onMouseLeave={() => setTranslationHover(false)}
                 />
               )}
-              {languageCategory === 'en' && !isZenMode && (
+              {shouldShowMnemonicDetails && (
+                <div className="w-full" onMouseEnter={() => setTranslationHover(true)} onMouseLeave={() => setTranslationHover(false)}>
+                  <MnemonicDetails
+                    word={activeWord.name}
+                    translations={activeWord.trans}
+                    showMeaning={isZenMode || shouldShowTranslation}
+                  />
+                </div>
+              )}
+              {languageCategory === 'en' && (
                 <div className="flex min-h-[6rem] w-full max-w-xl shrink-0 items-start justify-center px-2 pt-1 text-center md:max-w-2xl">
                   {shouldReadAfter && showExample && activeExample && (
                     <div
@@ -349,7 +354,6 @@ export default function WordPanel() {
                   )}
                 </div>
               )}
-              {shouldShowMnemonicCard && <MnemonicCard word={activeWord.name} translations={activeWord.trans} example={activeExample} />}
             </div>
           </div>
         )}

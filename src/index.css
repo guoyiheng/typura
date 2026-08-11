@@ -177,149 +177,112 @@ button,
   max-width: 900px;
 }
 
-.mnemonic-card {
-  display: grid;
+.mnemonic-details {
+  display: flex;
   width: 100%;
-  max-width: 760px;
-  min-height: 190px;
-  grid-template-columns: 184px minmax(0, 1fr);
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-  text-align: left;
+  max-width: 680px;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 auto;
+  padding: 18px 0 8px;
+  text-align: center;
   user-select: text;
-  animation: mnemonic-card-enter 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.mnemonic-card__visual {
-  position: relative;
+.mnemonic-details__meaning {
   display: flex;
-  min-height: 190px;
-  flex-direction: column;
-  overflow: hidden;
-  border-right: 1px solid var(--line);
-  background: var(--surface-soft);
-}
-
-.mnemonic-card__visual img {
-  width: 100%;
-  min-height: 0;
-  flex: 1;
-  object-fit: cover;
-}
-
-.mnemonic-card__visual figcaption {
-  flex: 0 0 auto;
-  border-top: 1px solid var(--line);
-  padding: 7px 12px;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-.mnemonic-card__visual figcaption a {
-  color: inherit;
-  text-decoration: none;
-}
-
-.mnemonic-card__visual figcaption a:hover {
-  color: var(--ink);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.mnemonic-card__visual-fallback {
-  display: flex;
-  min-height: 100%;
-  flex: 1;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 18px;
-}
-
-.mnemonic-card__visual-fallback span,
-.mnemonic-card__label {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-.mnemonic-card__visual-fallback strong {
-  color: var(--ink);
-  font-family: 'Newsreader', 'Songti SC', serif;
-  font-size: 24px;
-  font-weight: 500;
-  line-height: 1.18;
-}
-
-.mnemonic-card__content {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
+  min-height: 32px;
+  align-items: center;
   justify-content: center;
-  padding: 18px 22px;
+  padding: 0 12px;
 }
 
-.mnemonic-card__section {
-  min-width: 0;
-  padding: 10px 0;
-}
-
-.mnemonic-card__section + .mnemonic-card__section {
-  border-top: 1px solid var(--line);
-}
-
-.mnemonic-card__section p {
-  margin: 4px 0 0;
-  color: var(--body);
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.mnemonic-card__meaning p {
+.mnemonic-details__meaning p {
+  margin: 0;
   color: var(--muted);
   font-size: 14px;
+  line-height: 1.65;
 }
 
-.mnemonic-card__meaning strong {
+.mnemonic-details__meaning strong {
   color: var(--ink);
   font-size: 18px;
   font-weight: 700;
 }
 
-.mnemonic-card__context p[lang='en'] {
-  color: var(--ink);
-  font-family: 'Newsreader', serif;
-  font-size: 15px;
-  font-weight: 500;
-  line-height: 1.45;
+.mnemonic-details__memory {
+  position: relative;
+  display: grid;
+  width: fit-content;
+  max-width: 100%;
+  grid-template-columns: 112px minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+  margin-top: 12px;
+  padding-top: 18px;
 }
 
-.mnemonic-card__context p[lang='en'] strong {
-  color: var(--primary);
-  font-weight: 600;
+.mnemonic-details__memory::before {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 44px;
+  border-top: 1px solid var(--line-strong);
+  content: '';
+  transform: translateX(-50%);
 }
 
-.mnemonic-card__context .mnemonic-card__translation {
-  margin-top: 1px;
+.mnemonic-details__visual {
+  width: 112px;
+  margin: 0;
+}
+
+.mnemonic-details__visual img {
+  display: block;
+  width: 112px;
+  height: 72px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.mnemonic-details__visual figcaption {
+  margin-top: 5px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: left;
 }
 
-@keyframes mnemonic-card-enter {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.mnemonic-details__visual figcaption a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.mnemonic-details__visual figcaption a:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.mnemonic-details__origin {
+  min-width: 0;
+  max-width: 480px;
+  text-align: left;
+}
+
+.mnemonic-details__origin > span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.mnemonic-details__origin p {
+  margin: 4px 0 0;
+  color: var(--body);
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .practice-workspace--book {
@@ -695,49 +658,39 @@ button,
     padding: 12px 8px 4px;
   }
 
-  .mnemonic-card {
-    min-height: 176px;
-    grid-template-columns: 96px minmax(0, 1fr);
+  .mnemonic-details {
+    padding-top: 14px;
   }
 
-  .mnemonic-card__visual {
-    min-height: 176px;
+  .mnemonic-details__meaning p {
+    font-size: 13px;
   }
 
-  .mnemonic-card__visual figcaption {
-    padding: 6px 8px;
+  .mnemonic-details__meaning strong {
+    font-size: 16px;
   }
 
-  .mnemonic-card__visual-fallback {
-    padding: 12px 10px;
+  .mnemonic-details__memory {
+    grid-template-columns: 80px minmax(0, 1fr);
+    gap: 12px;
+    padding-inline: 4px;
   }
 
-  .mnemonic-card__visual-fallback strong {
-    font-size: 18px;
+  .mnemonic-details__visual,
+  .mnemonic-details__visual img {
+    width: 80px;
   }
 
-  .mnemonic-card__content {
-    padding: 10px 14px;
+  .mnemonic-details__visual img {
+    height: 62px;
   }
 
-  .mnemonic-card__section {
-    padding: 7px 0;
-  }
-
-  .mnemonic-card__section p {
+  .mnemonic-details__origin p {
     display: -webkit-box;
     overflow: hidden;
     font-size: 12px;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
-  }
-
-  .mnemonic-card__meaning strong {
-    font-size: 16px;
-  }
-
-  .mnemonic-card__context p[lang='en'] {
-    font-size: 13px;
   }
 
   .practice-stage--book {
@@ -771,10 +724,6 @@ button,
 
 @media (prefers-reduced-motion: reduce) {
   .book-practice__caret {
-    animation: none;
-  }
-
-  .mnemonic-card {
     animation: none;
   }
 }
