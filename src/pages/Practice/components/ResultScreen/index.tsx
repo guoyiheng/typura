@@ -24,6 +24,7 @@ const PracticeResultDialog = () => {
 
   const setWordDictationConfig = useSetAtom(wordDictationConfigAtom)
   const activeDictionary = useAtomValue(currentDictInfoAtom)
+  const isBookMode = activeDictionary.contentType === 'book'
   const [currentChapter, setCurrentChapter] = useAtom(currentChapterAtom)
   const currentChapterInfo = useAtomValue(currentChapterInfoAtom)
   const hasPresetChapters = hasDictionaryPresetChapters(activeDictionary)
@@ -120,8 +121,8 @@ const PracticeResultDialog = () => {
       }
       return currentConfig
     })
-    dispatch({ type: PracticeActionType.REPEAT_CHAPTER, shouldShuffle: randomOrder.isOpen })
-  }, [isReviewMode, setWordDictationConfig, dispatch, randomOrder.isOpen])
+    dispatch({ type: PracticeActionType.REPEAT_CHAPTER, shouldShuffle: !isBookMode && randomOrder.isOpen })
+  }, [isBookMode, isReviewMode, setWordDictationConfig, dispatch, randomOrder.isOpen])
 
   const startDictation = useCallback(async () => {
     if (isReviewMode) {
@@ -176,7 +177,7 @@ const PracticeResultDialog = () => {
       <DialogContent className="result-dialog flex max-h-[calc(100vh-2rem)] w-[calc(100%-2rem)] max-w-[840px] flex-col gap-0 overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface)] p-0 sm:max-h-[calc(100vh-3rem)]">
         <DialogHeader className="result-header shrink-0 border-b border-[var(--line)] bg-[var(--surface)] px-6 py-5 pr-14 text-left sm:px-8 sm:py-6">
           <p className="mb-1 text-xs font-semibold text-[var(--primary)]">练习完成</p>
-          <DialogTitle className="truncate font-display text-2xl font-semibold text-[var(--ink)] sm:text-3xl">
+          <DialogTitle className="font-display truncate text-2xl font-semibold text-[var(--ink)] sm:text-3xl">
             {`${activeDictionary.name} ${isReviewMode ? '错题复习' : chapterTitle}`}
           </DialogTitle>
         </DialogHeader>
@@ -199,7 +200,7 @@ const PracticeResultDialog = () => {
                 </span>
               </div>
               <div className="flex items-center gap-1">
-                {!isReviewMode && (
+                {!isReviewMode && !isBookMode && (
                   <>
                     <ShareButton />
                     <button
@@ -235,10 +236,12 @@ const PracticeResultDialog = () => {
         <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-[var(--line)] bg-[var(--surface)] px-6 py-4 sm:flex-row sm:justify-end sm:px-8">
           {!isReviewMode && (
             <>
-              <button className="secondary-button w-full sm:w-auto" type="button" onClick={startDictation} title="默写本章节">
-                <EyeOff className="h-4 w-4" />
-                默写本章
-              </button>
+              {!isBookMode && (
+                <button className="secondary-button w-full sm:w-auto" type="button" onClick={startDictation} title="默写本章节">
+                  <EyeOff className="h-4 w-4" />
+                  默写本章
+                </button>
+              )}
               <button className="secondary-button w-full sm:w-auto" type="button" onClick={restartPractice} title="重复本章节">
                 <RotateCcw className="h-4 w-4" />
                 再练一次

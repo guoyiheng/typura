@@ -177,6 +177,21 @@ button,
   max-width: 900px;
 }
 
+.practice-workspace--book {
+  height: 100%;
+  max-width: 1080px;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.practice-workspace--book.practice-workspace--zen {
+  max-width: 1180px;
+}
+
+.practice-workspace--book .practice-column {
+  min-height: 0;
+}
+
 .zen-progress {
   position: fixed;
   bottom: max(24px, env(safe-area-inset-bottom));
@@ -214,6 +229,10 @@ button,
   font-variant-numeric: tabular-nums;
 }
 
+.zen-progress--book {
+  display: none;
+}
+
 .practice-column {
   justify-content: center;
   gap: 12px;
@@ -237,6 +256,152 @@ button,
   align-items: stretch;
   justify-content: center;
   padding: 20px 24px 8px;
+}
+
+.practice-stage--book {
+  height: min(620px, 68vh);
+  min-height: 0;
+}
+
+.practice-workspace--book.practice-workspace--zen .practice-stage--book {
+  height: 100%;
+  max-height: 100%;
+}
+
+.practice-stage--book .practice-stage__body {
+  padding: 8px 0 4px;
+}
+
+.book-practice {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.book-practice__header {
+  display: flex;
+  min-height: 68px;
+  flex: 0 0 auto;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  border-bottom: 1px solid var(--line-strong);
+  padding: 0 18px 16px;
+}
+
+.book-practice__scroll {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-padding-block: 38%;
+  padding: 28px 18px 40px;
+}
+
+.book-practice__text {
+  margin: 0 auto;
+  max-width: 900px;
+  color: var(--muted);
+  font-family: 'Newsreader', 'Songti SC', serif;
+  font-weight: 500;
+  line-height: 1.95;
+  text-align: left;
+  user-select: text;
+}
+
+.book-practice__paragraph-break {
+  display: block;
+  height: 0.85em;
+}
+
+.book-practice__word {
+  position: relative;
+  display: inline;
+  margin: 0;
+  border: 0;
+  border-radius: 2px;
+  padding: 0 1px;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: inherit;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease;
+}
+
+.book-practice__word:hover {
+  background: var(--surface-soft);
+  color: var(--ink);
+}
+
+.book-practice__word--complete {
+  color: var(--body);
+}
+
+.book-practice__word--mistake {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--danger) 55%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+
+.book-practice__word--active {
+  background: var(--primary-soft);
+  color: var(--ink);
+  box-shadow: 0 2px 0 var(--primary);
+}
+
+.book-practice__word--error {
+  background: var(--danger-soft);
+  box-shadow: 0 2px 0 var(--danger);
+}
+
+.book-practice__character--typed {
+  color: var(--primary);
+}
+
+.book-practice__character {
+  color: var(--ink);
+}
+
+.book-practice__caret {
+  display: inline-block;
+  width: 1px;
+  height: 0.9em;
+  margin-left: 2px;
+  background: var(--primary);
+  vertical-align: -0.06em;
+  animation: book-caret 900ms steps(1, end) infinite;
+}
+
+.book-practice--zen .book-practice__header {
+  min-height: 76px;
+  padding-right: 64px;
+}
+
+.book-practice--zen .book-practice__scroll {
+  padding-top: 36px;
+  padding-bottom: 72px;
+}
+
+.book-practice--zen .book-practice__text {
+  max-width: 980px;
+}
+
+@keyframes book-caret {
+  0%,
+  48% {
+    opacity: 1;
+  }
+  49%,
+  100% {
+    opacity: 0;
+  }
 }
 
 .practice-start-overlay {
@@ -385,10 +550,38 @@ button,
     padding: 12px 8px 4px;
   }
 
+  .practice-stage--book {
+    height: min(540px, 65vh);
+    min-height: 0;
+  }
+
+  .practice-workspace--book.practice-workspace--zen .practice-stage--book {
+    height: 100%;
+  }
+
+  .practice-stage--book .practice-stage__body {
+    padding: 0;
+  }
+
+  .book-practice__header {
+    min-height: 62px;
+    padding: 0 8px 12px;
+  }
+
+  .book-practice__scroll {
+    padding: 22px 8px 36px;
+  }
+
   .zen-progress {
     bottom: max(16px, env(safe-area-inset-bottom));
     left: max(16px, env(safe-area-inset-left));
     max-width: calc(100vw - 32px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .book-practice__caret {
+    animation: none;
   }
 }
 

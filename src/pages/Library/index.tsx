@@ -1,3 +1,4 @@
+import { BookShelf } from './BookShelf'
 import DictionaryGroup from './CategoryDicts'
 import { FilterConsole } from './FilterConsole'
 import { LanguageTabSwitcher } from './LanguageTabSwitcher'
@@ -7,8 +8,8 @@ import { currentDictInfoAtom } from '@/store'
 import type { LanguageCategoryType } from '@/typings'
 import groupBy from '@/utils/groupBy'
 import { useAtomValue } from 'jotai'
-import { ArrowLeft, Library, SearchX } from 'lucide-react'
-import { createContext, useCallback, useEffect, useMemo } from 'react'
+import { ArrowLeft, BookOpenText, Library, LibraryBig, SearchX } from 'lucide-react'
+import { createContext, useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Updater } from 'use-immer'
 import { useImmer } from 'use-immer'
@@ -36,6 +37,9 @@ export default function LibraryPage() {
   const [filters, updateFilters] = useImmer<LibraryFilters>(initialFilters)
   const navigate = useNavigate()
   const activeDictionary = useAtomValue(currentDictInfoAtom)
+  const [libraryMode, setLibraryMode] = useState<'dictionary' | 'book'>(() =>
+    activeDictionary.contentType === 'book' ? 'book' : 'dictionary',
+  )
 
   const dictionariesForLanguage = useMemo(
     () => dictionaries.filter((dictionary) => dictionary.languageCategory === filters.language),
@@ -86,6 +90,7 @@ export default function LibraryPage() {
   }, [updateFilters])
 
   useEffect(() => {
+    if (activeDictionary.contentType === 'book') return
     updateFilters((draft) => {
       draft.language = activeDictionary.languageCategory
       draft.category = activeDictionary.category || 'ALL'
@@ -115,54 +120,97 @@ export default function LibraryPage() {
               <div>
                 <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-[var(--primary)]">
                   <Library className="h-4 w-4" />
-                  词库工作台
+                  学习资料库
                 </div>
-                <h1 className="font-display text-4xl leading-none font-semibold text-[var(--ink)]">选择下一组练习</h1>
+                <h1 className="font-display text-4xl leading-none font-semibold text-[var(--ink)]">
+                  {libraryMode === 'dictionary' ? '选择下一组练习' : '选择一本书开始阅读'}
+                </h1>
               </div>
-              <LanguageTabSwitcher />
-            </div>
-
-            <FilterConsole
-              searchQuery={filters.query}
-              onChangeSearchQuery={(query) =>
-                updateFilters((draft) => {
-                  draft.query = query
-                })
-              }
-              categories={categories}
-              currentCategory={filters.category}
-              onChangeCategory={(category) =>
-                updateFilters((draft) => {
-                  draft.category = category
-                  draft.tag = 'ALL'
-                })
-              }
-              tags={tags}
-              currentTag={filters.tag}
-              onChangeTag={(tag) =>
-                updateFilters((draft) => {
-                  draft.tag = tag
-                })
-              }
-              onResetFilters={resetFilters}
-              totalCount={visibleDictionaries.length}
-            />
-
-            <div className="mt-9 flex flex-col gap-12 pb-16">
-              {dictionaryGroups.length > 0 ? (
-                dictionaryGroups.map(([category, categoryDictionaries]) => (
-                  <DictionaryGroup key={category} category={category} dicts={categoryDictionaries} />
-                ))
-              ) : (
-                <div className="flex min-h-72 flex-col items-center justify-center border-y border-[var(--line)] text-center">
-                  <SearchX className="h-7 w-7 text-[var(--muted)]" />
-                  <p className="mt-4 font-semibold text-[var(--ink)]">没有匹配的词典</p>
-                  <button type="button" className="secondary-button mt-5" onClick={resetFilters}>
-                    清除筛选
+              <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-end">
+                <div
+                  className="inline-flex items-center rounded-md border border-[var(--line-strong)] bg-[var(--surface)] p-1"
+                  aria-label="资料类型"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setLibraryMode('dictionary')}
+                    className={`flex h-8 items-center gap-2 rounded px-3 text-xs font-semibold transition-colors ${
+                      libraryMode === 'dictionary'
+                        ? 'bg-[var(--primary)] text-[var(--on-primary)]'
+                        : 'text-[var(--muted)] hover:text-[var(--ink)]'
+                    }`}
+                    aria-pressed={libraryMode === 'dictionary'}
+                  >
+                    <LibraryBig className="h-3.5 w-3.5" />
+                    词典
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLibraryMode('book')}
+                    className={`flex h-8 items-center gap-2 rounded px-3 text-xs font-semibold transition-colors ${
+                      libraryMode === 'book'
+                        ? 'bg-[var(--primary)] text-[var(--on-primary)]'
+                        : 'text-[var(--muted)] hover:text-[var(--ink)]'
+                    }`}
+                    aria-pressed={libraryMode === 'book'}
+                  >
+                    <BookOpenText className="h-3.5 w-3.5" />
+                    书籍
                   </button>
                 </div>
-              )}
+                {libraryMode === 'dictionary' && <LanguageTabSwitcher />}
+              </div>
             </div>
+
+            {libraryMode === 'dictionary' ? (
+              <>
+                <FilterConsole
+                  searchQuery={filters.query}
+                  onChangeSearchQuery={(query) =>
+                    updateFilters((draft) => {
+                      draft.query = query
+                    })
+                  }
+                  categories={categories}
+                  currentCategory={filters.category}
+                  onChangeCategory={(category) =>
+                    updateFilters((draft) => {
+                      draft.category = category
+                      draft.tag = 'ALL'
+                    })
+                  }
+                  tags={tags}
+                  currentTag={filters.tag}
+                  onChangeTag={(tag) =>
+                    updateFilters((draft) => {
+                      draft.tag = tag
+                    })
+                  }
+                  onResetFilters={resetFilters}
+                  totalCount={visibleDictionaries.length}
+                />
+
+                <div className="mt-9 flex flex-col gap-12 pb-16">
+                  {dictionaryGroups.length > 0 ? (
+                    dictionaryGroups.map(([category, categoryDictionaries]) => (
+                      <DictionaryGroup key={category} category={category} dicts={categoryDictionaries} />
+                    ))
+                  ) : (
+                    <div className="flex min-h-72 flex-col items-center justify-center border-y border-[var(--line)] text-center">
+                      <SearchX className="h-7 w-7 text-[var(--muted)]" />
+                      <p className="mt-4 font-semibold text-[var(--ink)]">没有匹配的词典</p>
+                      <button type="button" className="secondary-button mt-5" onClick={resetFilters}>
+                        清除筛选
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="mt-9 pb-16">
+                <BookShelf />
+              </div>
+            )}
           </main>
         </div>
       </LibraryContext.Provider>

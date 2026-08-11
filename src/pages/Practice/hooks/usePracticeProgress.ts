@@ -31,7 +31,7 @@ export function useRestorePracticeProgress({
   const reviewModeInfo = useAtomValue(reviewModeInfoAtom)
   const { isReviewMode, reviewRecord } = reviewModeInfo
   const wordDictationConfig = useAtomValue(wordDictationConfigAtom)
-  const isDictationMode = wordDictationConfig.isOpen
+  const isDictationMode = currentDictionary.contentType !== 'book' && wordDictationConfig.isOpen
 
   const learnProgress = useAtomValue(learnProgressAtom)
   const dictationProgress = useAtomValue(dictationProgressAtom)
@@ -110,7 +110,7 @@ export function usePersistPracticeProgress(state: PracticeSessionState, words: W
   const isReviewMode = useAtomValue(reviewModeInfoAtom).isReviewMode
 
   const wordDictationConfig = useAtomValue(wordDictationConfigAtom)
-  const isDictationMode = wordDictationConfig.isOpen
+  const isDictationMode = currentDictionary.contentType !== 'book' && wordDictationConfig.isOpen
 
   const setLearnProgress = useSetAtom(learnProgressAtom)
   const setDictationProgress = useSetAtom(dictationProgressAtom)

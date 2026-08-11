@@ -21,8 +21,10 @@ export const DictChapterButton = () => {
   const chapterLength = useAtomValue(chapterLengthAtom)
   const [currentChapter, setCurrentChapter] = useAtom(currentChapterAtom)
   const chapterCount = currentDictInfo.chapterCount
+  const isBookMode = currentDictInfo.contentType === 'book'
   const isReviewMode = useAtomValue(isReviewModeAtom)
-  const isDictationMode = useAtomValue(wordDictationConfigAtom).isOpen
+  const wordDictationConfig = useAtomValue(wordDictationConfigAtom)
+  const isDictationMode = !isBookMode && wordDictationConfig.isOpen
   const learnProgress = useAtomValue(learnProgressAtom)
   const dictationProgress = useAtomValue(dictationProgressAtom)
   const activeProgress = (isDictationMode ? dictationProgress : learnProgress)[currentDictInfo.id]
@@ -65,7 +67,7 @@ export const DictChapterButton = () => {
 
   return (
     <>
-      <Tooltip content="词典切换" placement="bottom">
+      <Tooltip content={isBookMode ? '书籍切换' : '词典切换'} placement="bottom">
         <NavLink
           className="flex min-h-9 max-w-[164px] items-center truncate rounded-md px-2.5 text-sm font-medium whitespace-nowrap text-[var(--ink)] transition-colors hover:bg-[var(--surface-soft)] focus-visible:outline-none sm:max-w-[280px] lg:max-w-none"
           to="/library"
@@ -83,7 +85,7 @@ export const DictChapterButton = () => {
               <span className="truncate whitespace-nowrap">{currentChapterLabel}</span>
             </Listbox.Button>
             <Transition as={Fragment} leave="transition ease-in duration-100" leaveFrom="opacity-100" leaveTo="opacity-0">
-              <Listbox.Options className="listbox-options w-auto min-w-[16rem] max-w-md p-1">
+              <Listbox.Options className="listbox-options w-auto max-w-md min-w-[16rem] p-1">
                 {chapterCount > 30 && (
                   <div
                     className="sticky top-0 z-10 mb-1 border-b border-[var(--line)] bg-[var(--surface-raised)] pb-1"

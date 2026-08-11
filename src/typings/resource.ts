@@ -1,4 +1,4 @@
-import type { LanguageCategoryType, LanguageType, PronunciationType } from '.'
+import type { LanguageCategoryType, LanguageType, PracticeContentType, PronunciationType } from '.'
 
 export type DictionaryChapter = {
   name: string
@@ -16,6 +16,9 @@ export type DictionaryResource = {
   length: number
   language: LanguageType
   languageCategory: LanguageCategoryType
+  contentType?: PracticeContentType
+  author?: string
+  subtitle?: string
   // 词典原生的不等长章节；未设置时按章节词数切分
   chapters?: DictionaryChapter[]
   // 词典原生章节的固定词数；未设置时使用用户自定义章节长度
@@ -34,6 +37,9 @@ export type Dictionary = {
   length: number
   language: LanguageType
   languageCategory: LanguageCategoryType
+  contentType: PracticeContentType
+  author?: string
+  subtitle?: string
   chapters?: DictionaryChapter[]
   defaultChapterLength?: number
   // calculated in the store

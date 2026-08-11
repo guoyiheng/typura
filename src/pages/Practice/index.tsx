@@ -1,4 +1,6 @@
 import Layout from '../../components/Layout'
+import { BookFontSizeControl } from './components/BookFontSizeControl'
+import BookPanel from './components/BookPanel'
 import { DictChapterButton } from './components/DictChapterButton'
 import ResultScreen from './components/ResultScreen'
 import SessionMetrics from './components/SessionMetrics'
@@ -20,10 +22,12 @@ import {
   currentChapterAtom,
   currentChapterInfoAtom,
   currentDictIdAtom,
+  currentDictInfoAtom,
   hotkeysConfigAtom,
   isReviewModeAtom,
   isZenModeAtom,
   randomConfigAtom,
+  wordDictationConfigAtom,
 } from '@/store'
 import {
   createDailyPracticeStats,
@@ -49,12 +53,15 @@ const PracticePage: React.FC = () => {
   const [currentDictId, setCurrentDictId] = useAtom(currentDictIdAtom)
   const [currentChapter, setCurrentChapter] = useAtom(currentChapterAtom)
   const currentChapterInfo = useAtomValue(currentChapterInfoAtom)
+  const currentResource = useAtomValue(currentDictInfoAtom)
   const isReviewMode = useAtomValue(isReviewModeAtom)
   const [isZenMode, setIsZenMode] = useAtom(isZenModeAtom)
   const hotkeysConfig = useAtomValue(hotkeysConfigAtom)
   const randomConfig = useAtomValue(randomConfigAtom)
   const setDailyPracticeStats = useSetAtom(dailyPracticeStatsAtom)
+  const setWordDictationConfig = useSetAtom(wordDictationConfigAtom)
   const saveChapterRecord = useSaveChapterRecord()
+  const isBookMode = currentResource.contentType === 'book'
 
   const dispatch = useCallback(
     (action: PracticeAction) => {
@@ -156,6 +163,11 @@ const PracticePage: React.FC = () => {
   }, [currentDictId, setCurrentChapter, setCurrentDictId])
 
   useEffect(() => {
+    if (!isBookMode) return
+    setWordDictationConfig((current) => (current.isOpen ? { ...current, isOpen: false, openBy: 'user' } : current))
+  }, [isBookMode, setWordDictationConfig])
+
+  useEffect(() => {
     const onBlur = () => {
       dispatch({ type: PracticeActionType.SET_IS_TYPING, payload: false })
     }
@@ -184,7 +196,7 @@ const PracticePage: React.FC = () => {
     }
   }, [state.isTyping, isLoading, dispatch])
 
-  useRestorePracticeProgress({ words, dispatch, shouldShuffle: randomConfig.isOpen })
+  useRestorePracticeProgress({ words, dispatch, shouldShuffle: !isBookMode && randomConfig.isOpen })
   usePersistPracticeProgress(state, words)
 
   useEffect(() => {
@@ -220,38 +232,52 @@ const PracticePage: React.FC = () => {
         {!isZenMode && (
           <Header>
             <DictChapterButton />
-            <WordList />
-            <WordDictationSwitcher />
+            {!isBookMode && <WordList />}
+            {!isBookMode && <WordDictationSwitcher />}
 
-            <Tooltip content={`开关释义显示 (${CTRL} + Shift + V)`} placement="bottom">
-              <button
-                type="button"
-                onClick={() => dispatch({ type: PracticeActionType.TOGGLE_TRANS_VISIBLE })}
-                className={`icon-button ${state.isTransVisible ? 'text-[var(--primary)]' : 'text-[var(--muted)]'}`}
-                aria-label="开关释义显示"
-                aria-pressed={state.isTransVisible}
-              >
-                {state.isTransVisible ? (
-                  <Languages className="h-[18px] w-[18px]" />
-                ) : (
-                  <div className="relative flex items-center justify-center">
-                    <Languages className="h-[18px] w-[18px] opacity-45" />
-                    <span className="absolute h-[1.5px] w-[18px] rotate-[45deg] bg-[var(--muted)]" />
-                  </div>
-                )}
-              </button>
-            </Tooltip>
+            {isBookMode ? (
+              <BookFontSizeControl />
+            ) : (
+              <Tooltip content={`开关释义显示 (${CTRL} + Shift + V)`} placement="bottom">
+                <button
+                  type="button"
+                  onClick={() => dispatch({ type: PracticeActionType.TOGGLE_TRANS_VISIBLE })}
+                  className={`icon-button ${state.isTransVisible ? 'text-[var(--primary)]' : 'text-[var(--muted)]'}`}
+                  aria-label="开关释义显示"
+                  aria-pressed={state.isTransVisible}
+                >
+                  {state.isTransVisible ? (
+                    <Languages className="h-[18px] w-[18px]" />
+                  ) : (
+                    <div className="relative flex items-center justify-center">
+                      <Languages className="h-[18px] w-[18px] opacity-45" />
+                      <span className="absolute h-[1.5px] w-[18px] rotate-[45deg] bg-[var(--muted)]" />
+                    </div>
+                  )}
+                </button>
+              </Tooltip>
+            )}
 
             <SettingsMenu />
           </Header>
         )}
         <div className="practice-layout flex h-full w-full flex-1 items-center justify-center">
-          <div className={`practice-workspace ${isZenMode ? 'practice-workspace--zen' : ''}`}>
-            <div className="practice-column relative flex h-full w-full max-w-[900px] min-w-0 flex-col items-center justify-self-center">
-              <section className="practice-stage w-full" aria-label="当前练习">
-                <div className="practice-stage__body">{isLoading ? <LoadingUI /> : !state.isFinished && <WordPanel />}</div>
+          <div
+            className={`practice-workspace ${isZenMode ? 'practice-workspace--zen' : ''} ${isBookMode ? 'practice-workspace--book' : ''}`}
+          >
+            <div
+              className={`practice-column relative flex h-full w-full min-w-0 flex-col items-center justify-self-center ${
+                isBookMode ? 'max-w-[1080px]' : 'max-w-[900px]'
+              }`}
+            >
+              <section className={`practice-stage w-full ${isBookMode ? 'practice-stage--book' : ''}`} aria-label="当前练习">
+                <div className="practice-stage__body">
+                  {isLoading ? <LoadingUI /> : !state.isFinished && (isBookMode ? <BookPanel /> : <WordPanel />)}
+                </div>
               </section>
-              {!isZenMode && !state.isFinished && <WordStatusPanel word={state.chapterData.words[state.chapterData.index]} />}
+              {!isBookMode && !isZenMode && !state.isFinished && (
+                <WordStatusPanel word={state.chapterData.words[state.chapterData.index]} />
+              )}
               {!isZenMode && <SessionMetrics />}
             </div>
           </div>
@@ -262,7 +288,7 @@ const PracticePage: React.FC = () => {
         <>
           {!isLoading && !state.isFinished && (
             <div
-              className="zen-progress"
+              className={`zen-progress ${isBookMode ? 'zen-progress--book' : ''}`}
               aria-label={`${chapterLabel}，第 ${currentWordPosition} 个单词，共 ${state.chapterData.words.length} 个`}
             >
               <span className="zen-progress__chapter">{chapterLabel}</span>

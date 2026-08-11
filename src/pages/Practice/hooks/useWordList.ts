@@ -1,3 +1,4 @@
+import { getBookChapterWords } from '@/resources/books'
 import { chapterLengthAtom, currentChapterAtom, currentDictInfoAtom, reviewModeInfoAtom } from '@/store'
 import type { Word, WordWithIndex } from '@/typings/index'
 import { getDictionaryChapter } from '@/utils'
@@ -20,6 +21,7 @@ export function useWordList(): UseWordListResult {
   const chapterLength = useAtomValue(chapterLengthAtom)
   const [currentChapter, setCurrentChapter] = useAtom(currentChapterAtom)
   const { isReviewMode, reviewRecord } = useAtomValue(reviewModeInfoAtom)
+  const isBookMode = currentDictInfo.contentType === 'book'
 
   useEffect(() => {
     if (!isReviewMode && currentChapter >= currentDictInfo.chapterCount) {
@@ -27,12 +29,14 @@ export function useWordList(): UseWordListResult {
     }
   }, [currentChapter, currentDictInfo.chapterCount, isReviewMode, setCurrentChapter])
 
-  const { data: wordList, error, isLoading } = useSWR(currentDictInfo.url, wordListFetcher)
+  const { data: wordList, error, isLoading } = useSWR(isBookMode ? null : currentDictInfo.url, wordListFetcher)
 
   const words: WordWithIndex[] = useMemo(() => {
     let newWords: Word[]
     if (isReviewMode) {
       newWords = reviewRecord?.words ?? []
+    } else if (isBookMode) {
+      newWords = getBookChapterWords(currentDictInfo.id, currentChapter)
     } else if (wordList) {
       const chapter = getDictionaryChapter(currentDictInfo, currentChapter, chapterLength)
       newWords = chapter ? wordList.slice(chapter.start, chapter.end) : []
@@ -41,7 +45,7 @@ export function useWordList(): UseWordListResult {
     }
 
     return normalizeWordList(newWords).map((word, index) => ({ ...word, index }))
-  }, [isReviewMode, wordList, reviewRecord?.words, currentDictInfo, currentChapter, chapterLength])
+  }, [isReviewMode, isBookMode, wordList, reviewRecord?.words, currentDictInfo, currentChapter, chapterLength])
 
-  return { words, isLoading, error }
+  return { words, isLoading: isBookMode ? false : isLoading, error }
 }

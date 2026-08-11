@@ -4,6 +4,7 @@ export type PronunciationType = 'us' | 'uk' | 'romaji' | 'zh' | 'ja' | 'de' | 'h
 export type PhoneticType = 'us' | 'uk' | 'romaji' | 'zh' | 'ja' | 'de' | 'hapin' | 'kk' | 'id'
 export type LanguageType = 'en' | 'romaji' | 'zh' | 'ja' | 'code' | 'de' | 'kk' | 'hapin' | 'id'
 export type LanguageCategoryType = 'en' | 'ja' | 'de' | 'code' | 'kk' | 'id'
+export type PracticeContentType = 'dictionary' | 'book'
 
 export type Word = {
   name: string
@@ -11,6 +12,8 @@ export type Word = {
   usphone: string
   ukphone: string
   notation?: string
+  lookup?: string
+  paragraphStart?: boolean
 }
 
 export type WordWithIndex = Word & {
