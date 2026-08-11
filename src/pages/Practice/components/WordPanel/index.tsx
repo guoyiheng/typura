@@ -1,4 +1,5 @@
 import { PracticeActionType, PracticeContext } from '../../store'
+import MnemonicCard from './components/MnemonicCard'
 import Phonetic from './components/Phonetic'
 import Translation from './components/Translation'
 import WordComponent from './components/Word'
@@ -11,6 +12,7 @@ import {
   currentDictInfoAtom,
   hotkeysConfigAtom,
   isReviewModeAtom,
+  isZenModeAtom,
   loopWordConfigAtom,
   pronunciationConfigAtom,
   reviewModeInfoAtom,
@@ -21,9 +23,9 @@ import { isHotkeyRecorderEvent } from '@/utils/hotkeys'
 import { prefetchWordExamples } from '@/utils/wordExample'
 import type { WordExample } from '@/utils/wordExample'
 import { useAtomValue, useSetAtom } from 'jotai'
+import { Info } from 'lucide-react'
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
-import { Info } from 'lucide-react'
 
 export default function WordPanel() {
   const { state, dispatch } = useContext(PracticeContext)!
@@ -34,6 +36,7 @@ export default function WordPanel() {
   const shortcuts = useAtomValue(hotkeysConfigAtom)
   const currentDictionary = useAtomValue(currentDictInfoAtom)
   const languageCategory = currentDictionary.languageCategory
+  const isZenMode = useAtomValue(isZenModeAtom)
   const pronunciationConfig = useAtomValue(pronunciationConfigAtom)
   const dictationSettings = useAtomValue(wordDictationConfigAtom)
   const [isWordComplete, setIsWordComplete] = useState(false)
@@ -43,8 +46,7 @@ export default function WordPanel() {
   const shouldReadAfter = dictationSettings.isOpen
     ? (dictationSettings.isReadAfter ?? true)
     : (dictationSettings.isLearnReadAfter ?? dictationSettings.isReadAfter ?? true)
-  const shouldShowPronunciationButton =
-    pronunciationConfig.isOpen && (shouldReadBefore || (isWordComplete && shouldReadAfter))
+  const shouldShowPronunciationButton = pronunciationConfig.isOpen && (shouldReadBefore || (isWordComplete && shouldReadAfter))
   const shouldShowPhonetic = shouldShowPronunciationButton
   const [activeExample, setActiveExample] = useState<WordExample | null>(null)
   const [showExample, setShowExample] = useState(false)
@@ -107,9 +109,7 @@ export default function WordPanel() {
   }, [state.chapterData.index, state.chapterData.words.length])
 
   const upcomingWords = useMemo(() => {
-    return state.chapterData.words
-      .slice(state.chapterData.index + 1, state.chapterData.index + 3)
-      .map((word) => word.name)
+    return state.chapterData.words.slice(state.chapterData.index + 1, state.chapterData.index + 3).map((word) => word.name)
   }, [state.chapterData.index, state.chapterData.words])
 
   usePrefetchPronunciationSound(upcomingWords)
@@ -229,9 +229,10 @@ export default function WordPanel() {
   const shouldShowTranslation = useMemo(() => {
     return isTranslationHovered || state.isTransVisible
   }, [isTranslationHovered, state.isTransVisible])
+  const shouldShowMnemonicCard = isZenMode && languageCategory === 'en' && (!dictationSettings.isOpen || isWordComplete)
 
   return (
-    <div className="container relative flex h-full w-full flex-col items-center justify-center">
+    <div className="relative container flex h-full w-full flex-col items-center justify-center">
       {toastMessage && (
         <div
           role="status"
@@ -253,7 +254,11 @@ export default function WordPanel() {
                 </div>
               </div>
             )}
-            <div className="relative mx-auto flex w-full max-w-xl flex-col items-center justify-center px-4 md:max-w-2xl">
+            <div
+              className={`relative mx-auto flex w-full max-w-xl flex-col items-center justify-center px-4 ${
+                isZenMode ? 'md:max-w-[760px]' : 'md:max-w-2xl'
+              }`}
+            >
               <WordComponent
                 word={activeWord}
                 onFinish={completeCurrentWord}
@@ -313,16 +318,21 @@ export default function WordPanel() {
                   )}
                 </div>
               )}
-              <Translation
-                trans={activeWord.trans}
-                showTrans={shouldShowTranslation}
-                onMouseEnter={() => setTranslationHover(true)}
-                onMouseLeave={() => setTranslationHover(false)}
-              />
-              {languageCategory === 'en' && (
+              {(!isZenMode || languageCategory !== 'en') && (
+                <Translation
+                  trans={activeWord.trans}
+                  showTrans={shouldShowTranslation}
+                  onMouseEnter={() => setTranslationHover(true)}
+                  onMouseLeave={() => setTranslationHover(false)}
+                />
+              )}
+              {languageCategory === 'en' && !isZenMode && (
                 <div className="flex min-h-[6rem] w-full max-w-xl shrink-0 items-start justify-center px-2 pt-1 text-center md:max-w-2xl">
                   {shouldReadAfter && showExample && activeExample && (
-                    <div className="animate__animated animate__fadeIn flex items-center justify-center gap-2 select-none" aria-live="polite">
+                    <div
+                      className="animate__animated animate__fadeIn flex items-center justify-center gap-2 select-none"
+                      aria-live="polite"
+                    >
                       <div>
                         <p className="text-base leading-7 font-medium text-[var(--body)]">{activeExample.english}</p>
                         <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{activeExample.chinese}</p>
@@ -339,6 +349,7 @@ export default function WordPanel() {
                   )}
                 </div>
               )}
+              {shouldShowMnemonicCard && <MnemonicCard word={activeWord.name} translations={activeWord.trans} example={activeExample} />}
             </div>
           </div>
         )}

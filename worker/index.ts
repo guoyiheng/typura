@@ -2,7 +2,8 @@ const JSON_CACHE_CONTROL = 'public, max-age=3600, s-maxage=604800, stale-while-r
 const MISSING_EXAMPLE_CACHE_CONTROL = 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=3600'
 const MAX_WORD_LENGTH = 80
 const MAX_JSON_BYTES = 2 * 1024 * 1024
-const EXAMPLE_CACHE_VERSION = '4'
+const EXAMPLE_CACHE_VERSION = '9'
+const IMAGE_CACHE_VERSION = '1'
 const MISSING_EXAMPLE_CACHE_TTL = 24 * 60 * 60 * 1000
 
 type WordExample = {
@@ -13,6 +14,17 @@ type WordExample = {
 type WordPhonetic = {
   usphone: string
   ukphone: string
+}
+
+type WordMnemonic = {
+  meaning: {
+    primary: string
+    secondary: string[]
+  } | null
+  rootAnalysis: string | null
+  imageUrl: string | null
+  imageSource: string | null
+  imageSourceUrl: string | null
 }
 
 function jsonResponse(data: unknown, init: ResponseInit = {}) {
@@ -83,6 +95,196 @@ function parseWordPhonetic(payload: unknown): WordPhonetic | null {
   return usphone || ukphone ? { usphone, ukphone } : null
 }
 
+function getArray(value: unknown) {
+  return Array.isArray(value) ? value : value ? [value] : []
+}
+
+function cleanMeaningText(value: string) {
+  return value
+    .replace(/^(?:n|v|vt|vi|adj|adv|prep|conj|pron|num|art|aux|int)\.\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function cleanSenseText(value: string) {
+  return value
+    .replace(/^[（(][^）)]{1,60}[）)]\s*/, '')
+    .replace(/(?:\[[^\]]+\]|【[^】]+】)/g, '')
+    .replace(/[。；;]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function parseWordMeaning(payload: unknown): WordMnemonic['meaning'] {
+  const ecWords = getRecordValue(payload, 'ec')?.word
+
+  for (const wordEntry of getArray(ecWords)) {
+    if (!isRecord(wordEntry)) continue
+
+    for (const translation of getArray(wordEntry.trs)) {
+      if (!isRecord(translation)) continue
+
+      for (const translationEntry of getArray(translation.tr)) {
+        if (!isRecord(translationEntry)) continue
+        const rawMeanings = getRecordValue(translationEntry, 'l')?.i
+
+        for (const rawMeaning of getArray(rawMeanings)) {
+          if (typeof rawMeaning !== 'string' || rawMeaning.startsWith('【名】')) continue
+
+          const clauses = cleanMeaningText(rawMeaning)
+            .split(/[；;]/)
+            .map((clause) => clause.trim())
+            .filter(Boolean)
+          if (clauses.length === 0) continue
+
+          const firstSense = clauses[0]
+            .split(/[，,、]/)
+            .map(cleanSenseText)
+            .filter(Boolean)
+          const primary = firstSense.slice(0, 2).join('、') || clauses[0]
+          const secondary = [...firstSense.slice(2), ...clauses.slice(1)]
+            .map(cleanSenseText)
+            .filter((sense, index, values) => sense && sense !== primary && values.indexOf(sense) === index)
+            .slice(0, 2)
+
+          return { primary, secondary }
+        }
+      }
+    }
+  }
+
+  return null
+}
+
+function getEtymologyValues(payload: unknown, language: 'zh' | 'en') {
+  const rawEntries = getRecordValue(getRecordValue(payload, 'etym') ?? {}, 'etyms')?.[language]
+  return getArray(rawEntries)
+    .filter(isRecord)
+    .map((entry) => (typeof entry.value === 'string' ? entry.value.trim() : ''))
+    .filter(Boolean)
+}
+
+function compactRootAnalysis(word: string, value: string) {
+  const sentences = value.replace(/\u200e/g, '').match(/[^。！？\n]+[。！？]?/g) ?? []
+  const constructionSentence = sentences.find((sentence) => /(?:构成|组成)/.test(sentence))
+
+  if (constructionSentence) {
+    const construction = constructionSentence.match(/(?:后者|该词|它)?由(.{2,160}?)(?:复合)?(?:构成|组成)/)
+    if (construction?.[1]) {
+      const parts = construction[1]
+        .trim()
+        .replace(/）和(?=[\p{Script=Latin}])/gu, '） + ')
+        .replace(/）与(?=[\p{Script=Latin}])/gu, '） + ')
+      return `${word} = ${parts}`
+    }
+  }
+
+  const originSentence = sentences.find((sentence) => /(?:来自|源自|衍生自)/.test(sentence))
+  if (originSentence) return originSentence.trim().slice(0, 140)
+
+  return null
+}
+
+function parseRootAnalysis(payload: unknown, word: string) {
+  for (const value of getEtymologyValues(payload, 'zh')) {
+    const analysis = compactRootAnalysis(word, value)
+    if (analysis) return analysis
+  }
+
+  for (const value of getEtymologyValues(payload, 'en')) {
+    const normalizedValue = value.replace(/\u200e/g, '')
+    const parts = normalizedValue.match(/from\s+([^,]+?)\s*\([“"]([^”"]+)[”"]\)\s*\+\s*([^,]+?)\s*\([“"]([^”"]+)[”"]\)/i)
+    if (parts) return `${word} = ${parts[1].trim()} (${parts[2].trim()}) + ${parts[3].trim()} (${parts[4].trim()})`
+
+    const source = normalizedValue
+      .split(',')[0]
+      ?.replace(/^from\s+/i, '')
+      .trim()
+    if (source) return `${word} 源自 ${source}`
+  }
+
+  return null
+}
+
+function parseWordImage(payload: unknown) {
+  const rawPictures = getRecordValue(payload, 'pic_dict')?.pic
+  const imageUrls = getArray(rawPictures)
+    .filter(isRecord)
+    .map((picture) => {
+      if (typeof picture.image === 'string') return picture.image.trim()
+      return typeof picture.url === 'string' ? picture.url.trim() : ''
+    })
+    .filter((url) => /^https:\/\//i.test(url))
+
+  const imageUrl = imageUrls.find((url) => /\.(?:jpe?g|webp)(?:\?|$)/i.test(url)) ?? imageUrls[0] ?? null
+  if (!imageUrl) return null
+
+  return {
+    imageUrl,
+    imageSource: '词典配图',
+    imageSourceUrl: null,
+  }
+}
+
+function parseWordMnemonic(payload: unknown, word: string): WordMnemonic {
+  const image = parseWordImage(payload)
+  return {
+    meaning: parseWordMeaning(payload),
+    rootAnalysis: parseRootAnalysis(payload, word),
+    imageUrl: image?.imageUrl ?? null,
+    imageSource: image?.imageSource ?? null,
+    imageSourceUrl: image?.imageSourceUrl ?? null,
+  }
+}
+
+async function fetchWikipediaImage(word: string) {
+  const imageApiUrl = new URL('https://en.wikipedia.org/w/api.php')
+  imageApiUrl.searchParams.set('action', 'query')
+  imageApiUrl.searchParams.set('generator', 'search')
+  imageApiUrl.searchParams.set('gsrsearch', word)
+  imageApiUrl.searchParams.set('gsrlimit', '1')
+  imageApiUrl.searchParams.set('prop', 'pageimages')
+  imageApiUrl.searchParams.set('pithumbsize', '420')
+  imageApiUrl.searchParams.set('format', 'json')
+
+  try {
+    const response = await fetch(imageApiUrl, {
+      headers: {
+        Accept: 'application/json',
+        'Api-User-Agent': 'typura/1.0 (https://typura.yiheng.run)',
+        'User-Agent': 'typura/1.0 (https://typura.yiheng.run)',
+      },
+      signal: AbortSignal.timeout(1800),
+    })
+    if (!response.ok) return null
+
+    const contentLength = Number(response.headers.get('Content-Length') ?? 0)
+    if (contentLength > 256 * 1024) return null
+
+    const payload: unknown = await response.json()
+    const pages = getRecordValue(getRecordValue(payload, 'query') ?? {}, 'pages')
+    if (!pages) return null
+
+    for (const page of Object.values(pages)) {
+      if (!isRecord(page)) continue
+      const thumbnail = getRecordValue(page, 'thumbnail')
+      const imageUrl = typeof thumbnail?.source === 'string' ? thumbnail.source.trim() : ''
+      const pageId = typeof page.pageid === 'number' ? page.pageid : null
+      if (!/^https:\/\/upload\.wikimedia\.org\//i.test(imageUrl) || pageId === null) continue
+
+      return {
+        imageUrl,
+        imageSource: 'Wikimedia',
+        imageSourceUrl: `https://en.wikipedia.org/?curid=${pageId}`,
+      }
+    }
+  } catch {
+    return null
+  }
+
+  return null
+}
+
 function getCachedRequest(request: Request) {
   const url = new URL(request.url)
   url.searchParams.sort()
@@ -96,6 +298,10 @@ function isCurrentExampleCacheResponse(response: Response) {
 function isFreshMissingExample(response: Response) {
   const cachedAt = Number(response.headers.get('X-Typura-Example-Missing-At'))
   return Number.isFinite(cachedAt) && Date.now() - cachedAt < MISSING_EXAMPLE_CACHE_TTL
+}
+
+function isCurrentImageCacheResponse(response: Response) {
+  return response.headers.get('X-Typura-Image-Cache-Version') === IMAGE_CACHE_VERSION
 }
 
 async function handleWordExample(request: Request, ctx: ExecutionContext) {
@@ -146,7 +352,8 @@ async function handleWordExample(request: Request, ctx: ExecutionContext) {
 
   const example = parseWordExample(payload)
   const phonetic = parseWordPhonetic(payload)
-  const hasDetails = Boolean(example || phonetic)
+  const mnemonic = parseWordMnemonic(payload, word)
+  const hasDetails = Boolean(example || phonetic || mnemonic.meaning || mnemonic.rootAnalysis || mnemonic.imageUrl)
   const headers = new Headers({
     'Cache-Control': hasDetails ? JSON_CACHE_CONTROL : MISSING_EXAMPLE_CACHE_CONTROL,
     'X-Typura-Example-Cache-Version': EXAMPLE_CACHE_VERSION,
@@ -155,10 +362,44 @@ async function handleWordExample(request: Request, ctx: ExecutionContext) {
   if (!hasDetails) headers.set('X-Typura-Example-Missing-At', Date.now().toString())
 
   const response = jsonResponse(
-    { example, phonetic },
+    { example, phonetic, mnemonic },
     {
       headers,
     },
+  )
+  ctx.waitUntil(cache.put(cacheKey, response.clone()))
+  return response
+}
+
+async function handleWordImage(request: Request, ctx: ExecutionContext) {
+  const word = normalizeWord(new URL(request.url).searchParams.get('word'))
+  if (!isValidWord(word)) {
+    return jsonResponse({ error: 'invalid_word' }, { status: 400, headers: { 'Cache-Control': 'no-store' } })
+  }
+
+  const cache = caches.default
+  const cacheKey = getCachedRequest(request)
+  const cachedResponse = await cache.match(cacheKey)
+  if (cachedResponse && isCurrentImageCacheResponse(cachedResponse)) {
+    const status = cachedResponse.headers.get('X-Typura-Image-Status')
+    if (status === 'hit' || (status === 'missing' && isFreshMissingExample(cachedResponse))) return cachedResponse
+  }
+
+  const image = await fetchWikipediaImage(word)
+  const headers = new Headers({
+    'Cache-Control': image ? JSON_CACHE_CONTROL : MISSING_EXAMPLE_CACHE_CONTROL,
+    'X-Typura-Image-Cache-Version': IMAGE_CACHE_VERSION,
+    'X-Typura-Image-Status': image ? 'hit' : 'missing',
+  })
+  if (!image) headers.set('X-Typura-Example-Missing-At', Date.now().toString())
+
+  const response = jsonResponse(
+    image ?? {
+      imageUrl: null,
+      imageSource: null,
+      imageSourceUrl: null,
+    },
+    { headers },
   )
   ctx.waitUntil(cache.put(cacheKey, response.clone()))
   return response
@@ -185,6 +426,7 @@ export default {
     }
 
     if (url.pathname === '/api/word-example') return handleWordExample(request, ctx)
+    if (url.pathname === '/api/word-image') return handleWordImage(request, ctx)
     if (url.pathname.startsWith('/api/')) {
       return jsonResponse({ error: 'not_found' }, { status: 404, headers: { 'Cache-Control': 'no-store' } })
     }

@@ -4,11 +4,13 @@ import Dexie from 'dexie'
 const EXAMPLE_CACHE_TTL = 30 * 24 * 60 * 60 * 1000
 const MISSING_EXAMPLE_CACHE_TTL = 24 * 60 * 60 * 1000
 const FAILURE_RETRY_DELAY = 5 * 60 * 1000
-const CACHE_VERSION = 5
+const CACHE_VERSION = 10
 const REQUEST_TIMEOUT = 5000
+const IMAGE_REQUEST_TIMEOUT = 2500
 const DEFAULT_WORD_API_BASE = ''
 
 const pendingDetails = new Map<string, Promise<WordDetails>>()
+const pendingImages = new Map<string, Promise<WordMnemonicImage>>()
 
 export type WordExample = {
   english: string
@@ -20,20 +22,44 @@ export type WordPhonetic = {
   ukphone: string
 }
 
+export type WordMnemonic = {
+  meaning: {
+    primary: string
+    secondary: string[]
+  } | null
+  rootAnalysis: string | null
+  imageUrl: string | null
+  imageSource?: string | null
+  imageSourceUrl?: string | null
+}
+
+type WordMnemonicImage = Pick<WordMnemonic, 'imageUrl' | 'imageSource' | 'imageSourceUrl'>
+
+const EMPTY_MNEMONIC: WordMnemonic = {
+  meaning: null,
+  rootAnalysis: null,
+  imageUrl: null,
+  imageSource: null,
+  imageSourceUrl: null,
+}
+
 type WordDetails = {
   example: WordExample | null
   phonetic: WordPhonetic | null
+  mnemonic: WordMnemonic
 }
 
 type WordDetailsResponse = {
   example: WordExample | null
   phonetic?: WordPhonetic | null
+  mnemonic?: WordMnemonic
 }
 
 type CachedWordExample = {
   word: string
   example: WordExample | null
   phonetic?: WordPhonetic | null
+  mnemonic?: WordMnemonic
   updatedAt: number
   version?: number
 }
@@ -65,6 +91,36 @@ function isWordPhonetic(value: unknown): value is WordPhonetic {
   if (typeof value !== 'object' || value === null) return false
   const phonetic = value as Record<string, unknown>
   return typeof phonetic.usphone === 'string' && typeof phonetic.ukphone === 'string'
+}
+
+function isWordMnemonic(value: unknown): value is WordMnemonic {
+  if (typeof value !== 'object' || value === null) return false
+  const mnemonic = value as Record<string, unknown>
+  const meaning = mnemonic.meaning
+  const isMeaningValid =
+    meaning === null ||
+    (typeof meaning === 'object' &&
+      typeof (meaning as Record<string, unknown>).primary === 'string' &&
+      Array.isArray((meaning as Record<string, unknown>).secondary) &&
+      (meaning as { secondary: unknown[] }).secondary.every((item) => typeof item === 'string'))
+
+  return (
+    isMeaningValid &&
+    (mnemonic.rootAnalysis === null || typeof mnemonic.rootAnalysis === 'string') &&
+    (mnemonic.imageUrl === null || typeof mnemonic.imageUrl === 'string') &&
+    (mnemonic.imageSource === undefined || mnemonic.imageSource === null || typeof mnemonic.imageSource === 'string') &&
+    (mnemonic.imageSourceUrl === undefined || mnemonic.imageSourceUrl === null || typeof mnemonic.imageSourceUrl === 'string')
+  )
+}
+
+function isWordMnemonicImage(value: unknown): value is WordMnemonicImage {
+  if (typeof value !== 'object' || value === null) return false
+  const image = value as Record<string, unknown>
+  return (
+    (image.imageUrl === null || typeof image.imageUrl === 'string') &&
+    (image.imageSource === undefined || image.imageSource === null || typeof image.imageSource === 'string') &&
+    (image.imageSourceUrl === undefined || image.imageSourceUrl === null || typeof image.imageSourceUrl === 'string')
+  )
 }
 
 function getApiBase() {
@@ -106,11 +162,17 @@ type MemoryCachedWordExample = {
 const memoryExampleCache = new Map<string, MemoryCachedWordExample>()
 
 function getCacheTTL(details: WordDetails) {
-  return details.example || details.phonetic ? EXAMPLE_CACHE_TTL : MISSING_EXAMPLE_CACHE_TTL
+  return details.example || details.phonetic || details.mnemonic.meaning || details.mnemonic.rootAnalysis || details.mnemonic.imageUrl
+    ? EXAMPLE_CACHE_TTL
+    : MISSING_EXAMPLE_CACHE_TTL
+}
+
+function hasWordDetails(details: WordDetails) {
+  return getCacheTTL(details) === EXAMPLE_CACHE_TTL
 }
 
 function isFreshCachedExample(cached: CachedWordExample) {
-  const details = { example: cached.example, phonetic: cached.phonetic ?? null }
+  const details = { example: cached.example, phonetic: cached.phonetic ?? null, mnemonic: cached.mnemonic ?? EMPTY_MNEMONIC }
   return cached.version === CACHE_VERSION && Date.now() - cached.updatedAt < getCacheTTL(details)
 }
 
@@ -165,11 +227,7 @@ async function fetchFreeDictionaryPhonetic(word: string, signal?: AbortSignal): 
   }
 }
 
-async function completeWordPhonetic(
-  word: string,
-  phonetic: WordPhonetic | null,
-  signal?: AbortSignal,
-): Promise<WordPhonetic | null> {
+async function completeWordPhonetic(word: string, phonetic: WordPhonetic | null, signal?: AbortSignal): Promise<WordPhonetic | null> {
   if (phonetic?.usphone && phonetic.ukphone) return phonetic
 
   const fallback = await fetchFreeDictionaryPhonetic(word, signal)
@@ -193,6 +251,7 @@ async function loadWordDetails(normalizedWord: string, signal?: AbortSignal): Pr
     const details = {
       example: cached.example,
       phonetic: await completeWordPhonetic(normalizedWord, cached.phonetic ?? null, signal),
+      mnemonic: cached.mnemonic ?? EMPTY_MNEMONIC,
     }
     if (details.phonetic !== cached.phonetic) await cacheDetails(normalizedWord, details)
     cacheMemoryDetails(normalizedWord, details, cached.updatedAt + getCacheTTL(details))
@@ -200,11 +259,11 @@ async function loadWordDetails(normalizedWord: string, signal?: AbortSignal): Pr
   }
   if (!hasWordApi()) {
     const fallbackPhonetic = await completeWordPhonetic(normalizedWord, cached?.phonetic ?? null, signal)
-    const fallback = { example: cached?.example ?? null, phonetic: fallbackPhonetic }
-    if (fallback.example || fallback.phonetic) {
+    const fallback = { example: cached?.example ?? null, phonetic: fallbackPhonetic, mnemonic: cached?.mnemonic ?? EMPTY_MNEMONIC }
+    if (hasWordDetails(fallback)) {
       await cacheDetails(normalizedWord, fallback)
     }
-    cacheMemoryDetails(normalizedWord, fallback, Date.now() + (fallback.phonetic ? EXAMPLE_CACHE_TTL : FAILURE_RETRY_DELAY))
+    cacheMemoryDetails(normalizedWord, fallback, Date.now() + (hasWordDetails(fallback) ? EXAMPLE_CACHE_TTL : FAILURE_RETRY_DELAY))
     return fallback
   }
 
@@ -225,23 +284,25 @@ async function loadWordDetails(normalizedWord: string, signal?: AbortSignal): Pr
     const detailsResponse = data as WordDetailsResponse
     const example = detailsResponse.example
     let phonetic = detailsResponse.phonetic ?? null
+    const mnemonic = detailsResponse.mnemonic ?? EMPTY_MNEMONIC
     if (example !== null && !isWordExample(example)) throw new Error('Invalid word example payload')
     if (phonetic !== null && !isWordPhonetic(phonetic)) throw new Error('Invalid word phonetic payload')
+    if (!isWordMnemonic(mnemonic)) throw new Error('Invalid word mnemonic payload')
 
     phonetic = await completeWordPhonetic(normalizedWord, phonetic, signal)
 
-    const details = { example, phonetic }
+    const details = { example, phonetic, mnemonic }
     await cacheDetails(normalizedWord, details)
     cacheMemoryDetails(normalizedWord, details)
     return details
   } catch (error) {
     if (!controller.signal.aborted) console.error('Failed to load word example', error)
     const fallbackPhonetic = await completeWordPhonetic(normalizedWord, cached?.phonetic ?? null, signal)
-    const fallback = { example: cached?.example ?? null, phonetic: fallbackPhonetic }
-    if (fallback.example || fallback.phonetic) {
+    const fallback = { example: cached?.example ?? null, phonetic: fallbackPhonetic, mnemonic: cached?.mnemonic ?? EMPTY_MNEMONIC }
+    if (hasWordDetails(fallback)) {
       await cacheDetails(normalizedWord, fallback)
     }
-    cacheMemoryDetails(normalizedWord, fallback, Date.now() + (fallback.phonetic ? EXAMPLE_CACHE_TTL : FAILURE_RETRY_DELAY))
+    cacheMemoryDetails(normalizedWord, fallback, Date.now() + (hasWordDetails(fallback) ? EXAMPLE_CACHE_TTL : FAILURE_RETRY_DELAY))
     return fallback
   } finally {
     window.clearTimeout(timeout)
@@ -251,7 +312,7 @@ async function loadWordDetails(normalizedWord: string, signal?: AbortSignal): Pr
 
 function getWordDetails(word: string, signal?: AbortSignal): Promise<WordDetails> {
   const normalizedWord = normalizeWord(word)
-  if (!normalizedWord) return Promise.resolve({ example: null, phonetic: null })
+  if (!normalizedWord) return Promise.resolve({ example: null, phonetic: null, mnemonic: EMPTY_MNEMONIC })
 
   const pending = pendingDetails.get(normalizedWord)
   if (pending) return pending
@@ -263,12 +324,63 @@ function getWordDetails(word: string, signal?: AbortSignal): Promise<WordDetails
   return request
 }
 
+function getWordImage(word: string, signal?: AbortSignal): Promise<WordMnemonicImage> {
+  const normalizedWord = normalizeWord(word)
+  if (!normalizedWord) return Promise.resolve(EMPTY_MNEMONIC)
+
+  const pending = pendingImages.get(normalizedWord)
+  if (pending) return pending
+
+  const request = (async () => {
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), IMAGE_REQUEST_TIMEOUT)
+    const abortRequest = () => controller.abort()
+    signal?.addEventListener('abort', abortRequest, { once: true })
+
+    try {
+      const response = await fetch(getWordApiUrl('/api/word-image', { word: normalizedWord }), {
+        headers: { Accept: 'application/json' },
+        signal: controller.signal,
+      })
+      if (!response.ok) return EMPTY_MNEMONIC
+
+      const image: unknown = await response.json()
+      return isWordMnemonicImage(image) ? image : EMPTY_MNEMONIC
+    } catch {
+      return EMPTY_MNEMONIC
+    } finally {
+      window.clearTimeout(timeout)
+      signal?.removeEventListener('abort', abortRequest)
+    }
+  })().finally(() => {
+    if (pendingImages.get(normalizedWord) === request) pendingImages.delete(normalizedWord)
+  })
+
+  pendingImages.set(normalizedWord, request)
+  return request
+}
+
 export function getWordExample(word: string, signal?: AbortSignal): Promise<WordExample | null> {
   return getWordDetails(word, signal).then((details) => details.example)
 }
 
 export function getWordPhonetic(word: string, signal?: AbortSignal): Promise<WordPhonetic | null> {
   return getWordDetails(word, signal).then((details) => details.phonetic)
+}
+
+export async function getWordMnemonic(word: string, signal?: AbortSignal): Promise<WordMnemonic> {
+  const normalizedWord = normalizeWord(word)
+  const details = await getWordDetails(normalizedWord, signal)
+  if (details.mnemonic.imageUrl) return details.mnemonic
+
+  const image = await getWordImage(normalizedWord, signal)
+  if (!image.imageUrl) return details.mnemonic
+
+  const mnemonic = { ...details.mnemonic, ...image }
+  const nextDetails = { ...details, mnemonic }
+  cacheMemoryDetails(normalizedWord, nextDetails)
+  await cacheDetails(normalizedWord, nextDetails)
+  return mnemonic
 }
 
 export async function prefetchWordExamples(words: string[]) {
