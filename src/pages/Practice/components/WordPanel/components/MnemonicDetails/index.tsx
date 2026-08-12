@@ -66,6 +66,13 @@ export default function MnemonicDetails({ word, translations, showMeaning, mnemo
 
       {part === 'memory' && (
         <div className="mnemonic-details__memory">
+          {mnemonic?.rootAnalysis && (
+            <div className="mnemonic-details__origin">
+              <span>词根 / 来源</span>
+              <p>{mnemonic.rootAnalysis}</p>
+            </div>
+          )}
+
           {imageUrl && (
             <figure className="mnemonic-details__visual">
               <img
@@ -92,13 +99,6 @@ export default function MnemonicDetails({ word, translations, showMeaning, mnemo
                 )}
               </figcaption>
             </figure>
-          )}
-
-          {mnemonic?.rootAnalysis && (
-            <div className="mnemonic-details__origin">
-              <span>词根 / 来源</span>
-              <p>{mnemonic.rootAnalysis}</p>
-            </div>
           )}
         </div>
       )}
