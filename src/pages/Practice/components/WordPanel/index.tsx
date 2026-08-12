@@ -20,8 +20,8 @@ import {
 } from '@/store'
 import { emitHotkeyAction, useHotkeyAction } from '@/utils/hotkeyBus'
 import { isHotkeyRecorderEvent } from '@/utils/hotkeys'
-import { prefetchWordExamples } from '@/utils/wordExample'
-import type { WordExample } from '@/utils/wordExample'
+import { getWordMnemonic, prefetchWordExamples } from '@/utils/wordExample'
+import type { WordExample, WordMnemonic } from '@/utils/wordExample'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { Info } from 'lucide-react'
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
@@ -33,6 +33,7 @@ export default function WordPanel() {
   const [repetitionIndex, setRepetitionIndex] = useState(0)
   const { times: loopWordTimes } = useAtomValue(loopWordConfigAtom)
   const activeWord = state.chapterData.words[state.chapterData.index]
+  const activeWordName = activeWord?.name
   const shortcuts = useAtomValue(hotkeysConfigAtom)
   const currentDictionary = useAtomValue(currentDictInfoAtom)
   const languageCategory = currentDictionary.languageCategory
@@ -49,6 +50,7 @@ export default function WordPanel() {
   const shouldShowPronunciationButton = pronunciationConfig.isOpen && (shouldReadBefore || (isWordComplete && shouldReadAfter))
   const shouldShowPhonetic = shouldShowPronunciationButton
   const [activeExample, setActiveExample] = useState<WordExample | null>(null)
+  const [wordMnemonic, setWordMnemonic] = useState<WordMnemonic | null>(null)
   const [showExample, setShowExample] = useState(false)
   const [isExamplePlaying, setIsExamplePlaying] = useState(false)
   const [isWordPlaying, setIsWordPlaying] = useState(false)
@@ -113,6 +115,20 @@ export default function WordPanel() {
   }, [state.chapterData.index, state.chapterData.words])
 
   usePrefetchPronunciationSound(upcomingWords)
+
+  useEffect(() => {
+    if (languageCategory !== 'en' || !activeWordName) return
+
+    let isActive = true
+    setWordMnemonic(null)
+    void getWordMnemonic(activeWordName).then((nextMnemonic) => {
+      if (isActive) setWordMnemonic(nextMnemonic)
+    })
+
+    return () => {
+      isActive = false
+    }
+  }, [activeWordName, languageCategory])
 
   useEffect(() => {
     if (languageCategory !== 'en') return
@@ -328,6 +344,8 @@ export default function WordPanel() {
                     word={activeWord.name}
                     translations={activeWord.trans}
                     showMeaning={isZenMode || shouldShowTranslation}
+                    mnemonic={wordMnemonic}
+                    part="meaning"
                   />
                 </div>
               )}
@@ -352,6 +370,17 @@ export default function WordPanel() {
                       </Tooltip>
                     </div>
                   )}
+                </div>
+              )}
+              {shouldShowMnemonicDetails && (
+                <div className="w-full">
+                  <MnemonicDetails
+                    word={activeWord.name}
+                    translations={activeWord.trans}
+                    showMeaning={isZenMode || shouldShowTranslation}
+                    mnemonic={wordMnemonic}
+                    part="memory"
+                  />
                 </div>
               )}
             </div>

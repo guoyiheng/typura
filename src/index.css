@@ -189,6 +189,14 @@ button,
   user-select: text;
 }
 
+.mnemonic-details--memory {
+  padding-top: 8px;
+}
+
+.mnemonic-details--memory .mnemonic-details__memory {
+  margin-top: 0;
+}
+
 .mnemonic-details__meaning {
   display: flex;
   min-height: 32px;
@@ -660,6 +668,10 @@ button,
 
   .mnemonic-details {
     padding-top: 14px;
+  }
+
+  .mnemonic-details--memory {
+    padding-top: 6px;
   }
 
   .mnemonic-details__meaning p {

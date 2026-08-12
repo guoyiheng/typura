@@ -1,11 +1,12 @@
 import type { WordMnemonic } from '@/utils/wordExample'
-import { getWordMnemonic } from '@/utils/wordExample'
 import { useEffect, useMemo, useState } from 'react'
 
 type MnemonicDetailsProps = {
   word: string
   translations: string[]
   showMeaning: boolean
+  mnemonic: WordMnemonic | null
+  part?: 'meaning' | 'memory'
 }
 
 function cleanSenseText(value: string) {
@@ -35,42 +36,35 @@ function simplifyLocalMeaning(translations: string[]): NonNullable<WordMnemonic[
   return { primary, secondary }
 }
 
-export default function MnemonicDetails({ word, translations, showMeaning }: MnemonicDetailsProps) {
-  const [mnemonic, setMnemonic] = useState<WordMnemonic | null>(null)
+export default function MnemonicDetails({ word, translations, showMeaning, mnemonic, part = 'meaning' }: MnemonicDetailsProps) {
   const [imageFailed, setImageFailed] = useState(false)
 
   useEffect(() => {
-    let isActive = true
-    setMnemonic(null)
     setImageFailed(false)
-
-    void getWordMnemonic(word).then((nextMnemonic) => {
-      if (isActive) setMnemonic(nextMnemonic)
-    })
-
-    return () => {
-      isActive = false
-    }
   }, [word])
 
   const meaning = useMemo(() => mnemonic?.meaning ?? simplifyLocalMeaning(translations), [mnemonic?.meaning, translations])
   const imageUrl = imageFailed ? null : mnemonic?.imageUrl
   const hasMemoryCue = Boolean(imageUrl || mnemonic?.rootAnalysis)
 
-  return (
-    <div className="mnemonic-details" aria-label={`${word} 助记信息`}>
-      <div className="mnemonic-details__meaning" aria-live="polite">
-        {showMeaning ? (
-          <p>
-            <strong>{meaning.primary}</strong>
-            {meaning.secondary.length > 0 && <span> · {meaning.secondary.join(' · ')}</span>}
-          </p>
-        ) : (
-          <p aria-hidden="true">&nbsp;</p>
-        )}
-      </div>
+  if (part === 'memory' && !hasMemoryCue) return null
 
-      {hasMemoryCue && (
+  return (
+    <div className={`mnemonic-details mnemonic-details--${part}`} aria-label={`${word} 助记信息`}>
+      {part === 'meaning' && (
+        <div className="mnemonic-details__meaning" aria-live="polite">
+          {showMeaning ? (
+            <p>
+              <strong>{meaning.primary}</strong>
+              {meaning.secondary.length > 0 && <span> · {meaning.secondary.join(' · ')}</span>}
+            </p>
+          ) : (
+            <p aria-hidden="true">&nbsp;</p>
+          )}
+        </div>
+      )}
+
+      {part === 'memory' && (
         <div className="mnemonic-details__memory">
           {imageUrl && (
             <figure className="mnemonic-details__visual">
