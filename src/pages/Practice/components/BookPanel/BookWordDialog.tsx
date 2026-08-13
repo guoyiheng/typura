@@ -65,7 +65,6 @@ export function BookWordDialog({ word, onClose }: { word: Word | null; onClose: 
           <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
             <DialogTitle className="font-display text-4xl leading-none font-semibold">{lookup}</DialogTitle>
             <div className="flex items-center gap-1.5 pb-0.5 text-xs text-[var(--muted)]">
-              <Tooltip content={`临时查看${alternateAccentName}音标`}>
                 <button
                   type="button"
                   onClick={() => setDisplayedPronunciationType((current) => (current === 'us' ? 'uk' : 'us'))}
@@ -74,7 +73,6 @@ export function BookWordDialog({ word, onClose }: { word: Word | null; onClose: 
                 >
                   <ArrowLeftRight className="h-3 w-3" strokeWidth={1.8} aria-hidden="true" />
                 </button>
-              </Tooltip>
               <span className="font-semibold text-[var(--body)]">{displayedAccentLabel}</span>
               <span>{displayedPhonetic ? `/${normalizePhonetic(displayedPhonetic)}/` : '音标读取中'}</span>
               <WordPronunciationIcon

@@ -69,7 +69,6 @@ export function WordDetailsDialog({ word, onClose }: { word: string | null; onCl
           <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
             <DialogTitle className="font-display text-4xl leading-none font-semibold">{dialogWord}</DialogTitle>
             <div className="flex items-center gap-1.5 pb-0.5 text-xs text-[var(--muted)]">
-              <Tooltip content={`临时查看${alternateAccentName}音标`}>
                 <button
                   type="button"
                   onClick={() => setDisplayedPronunciationType((current) => (current === 'us' ? 'uk' : 'us'))}
@@ -78,7 +77,6 @@ export function WordDetailsDialog({ word, onClose }: { word: string | null; onCl
                 >
                   <ArrowLeftRight className="h-3 w-3" strokeWidth={1.8} aria-hidden="true" />
                 </button>
-              </Tooltip>
               <span className="font-semibold text-[var(--body)]">{displayedAccentLabel}</span>
               <span>{displayedPhonetic ? `/${normalizePhonetic(displayedPhonetic)}/` : isLoading ? '音标读取中' : '暂无音标'}</span>
               <WordPronunciationIcon

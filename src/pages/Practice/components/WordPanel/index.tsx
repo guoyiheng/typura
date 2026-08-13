@@ -304,7 +304,6 @@ export default function WordPanel() {
               {languageCategory === 'en' ? (
                 <div className="mt-2 flex min-h-5 w-full items-center justify-center gap-2 empty:hidden">
                   {shouldShowPhonetic && (
-                    <Tooltip content={`临时查看${displayedPronunciationType === 'us' ? '英音' : '美音'}音标`}>
                       <button
                         type="button"
                         onClick={toggleDisplayedPronunciation}
@@ -313,7 +312,6 @@ export default function WordPanel() {
                       >
                         <ArrowLeftRight className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
                       </button>
-                    </Tooltip>
                   )}
                   {shouldShowPhonetic && <Phonetic word={activeWord} type={displayedPronunciationType} />}
                   {shouldShowPronunciationButton && (
