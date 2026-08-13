@@ -1,7 +1,6 @@
 import { WordDetailsDialog } from '@/components/WordDetailsDialog'
 import { PracticeActionType, PracticeContext } from '@/pages/Practice/store'
 import type { WordMnemonic } from '@/utils/wordExample'
-import { Network } from 'lucide-react'
 import { useContext, useEffect, useMemo, useRef, useState } from 'react'
 
 type MnemonicDetailsProps = {
@@ -88,7 +87,7 @@ export default function MnemonicDetails({ word, translations, showMeaning, mnemo
         <div className="mnemonic-details__memory">
           {Boolean(mnemonic?.similarWords.length) && (
             <div className="mnemonic-details__similar" aria-label="易混单词">
-              <Network aria-hidden="true" />
+              <span className="mnemonic-details__similar-title">易混单词</span>
               <div>
                 {mnemonic?.similarWords.map((item) => (
                   <button key={item.word} type="button" onClick={() => openSimilarWord(item.word)}>

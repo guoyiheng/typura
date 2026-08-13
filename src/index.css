@@ -184,13 +184,13 @@ button,
   flex-direction: column;
   align-items: center;
   margin: 0 auto;
-  padding: 18px 0 8px;
+  padding: 14px 0 6px;
   text-align: center;
   user-select: text;
 }
 
 .mnemonic-details--memory {
-  padding-top: 8px;
+  padding-top: 5px;
 }
 
 .mnemonic-details--memory .mnemonic-details__memory {
@@ -207,28 +207,27 @@ button,
 
 .mnemonic-details__similar {
   display: flex;
+  flex-direction: column;
   width: 100%;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  gap: 8px;
-  margin-bottom: 9px;
-  padding: 0 12px;
+  gap: 3px;
+  margin-bottom: 2px;
+  padding: 0 8px;
   color: var(--muted);
 }
 
-.mnemonic-details__similar > svg {
-  width: 13px;
-  height: 13px;
-  margin-top: 4px;
-  flex: none;
-  stroke-width: 1.8;
+.mnemonic-details__similar-title {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 .mnemonic-details__similar > div {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 4px 18px;
+  gap: 2px 14px;
 }
 
 .mnemonic-details__similar button {
@@ -238,8 +237,8 @@ button,
   gap: 6px;
   padding: 0;
   color: inherit;
-  font-size: 12px;
-  line-height: 1.7;
+  font-size: 11px;
+  line-height: 1.45;
   text-align: left;
   transition: color 150ms ease;
 }
@@ -257,7 +256,7 @@ button,
 
 .mnemonic-details__similar button strong {
   color: var(--ink);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 650;
   transition: color 150ms ease;
 }
@@ -287,16 +286,16 @@ button,
   max-width: 100%;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  margin-top: 12px;
-  padding-top: 18px;
+  gap: 10px;
+  margin-top: 7px;
+  padding-top: 12px;
 }
 
 .mnemonic-details__memory::before {
   position: absolute;
   top: 0;
   left: 50%;
-  width: 44px;
+  width: 36px;
   border-top: 1px solid var(--line-strong);
   content: '';
   transform: translateX(-50%);
@@ -731,11 +730,11 @@ button,
   }
 
   .mnemonic-details {
-    padding-top: 14px;
+    padding-top: 10px;
   }
 
   .mnemonic-details--memory {
-    padding-top: 6px;
+    padding-top: 4px;
   }
 
   .mnemonic-details__meaning p {
@@ -747,7 +746,7 @@ button,
   }
 
   .mnemonic-details__similar > div {
-    gap: 3px 12px;
+    gap: 2px 10px;
   }
 
   .mnemonic-details__meaning strong {
@@ -755,7 +754,7 @@ button,
   }
 
   .mnemonic-details__memory {
-    gap: 14px;
+    gap: 8px;
     padding-inline: 4px;
   }
 
