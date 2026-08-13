@@ -23,7 +23,7 @@ import { isHotkeyRecorderEvent } from '@/utils/hotkeys'
 import { getWordMnemonic, prefetchWordExamples } from '@/utils/wordExample'
 import type { WordExample, WordMnemonic } from '@/utils/wordExample'
 import { useAtomValue, useSetAtom } from 'jotai'
-import { Info } from 'lucide-react'
+import { ArrowLeftRight, Info } from 'lucide-react'
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 
@@ -54,6 +54,8 @@ export default function WordPanel() {
   const [showExample, setShowExample] = useState(false)
   const [isExamplePlaying, setIsExamplePlaying] = useState(false)
   const [isWordPlaying, setIsWordPlaying] = useState(false)
+  const preferredPronunciationType = pronunciationConfig.type === 'us' ? 'us' : 'uk'
+  const [displayedPronunciationType, setDisplayedPronunciationType] = useState<'us' | 'uk'>(preferredPronunciationType)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const usPronunciationIconRef = useRef<WordPronunciationIconRef>(null)
   const ukPronunciationIconRef = useRef<WordPronunciationIconRef>(null)
@@ -74,7 +76,11 @@ export default function WordPanel() {
 
   const stopSelectedPronunciation = useCallback(() => {
     getSelectedPronunciationIcon()?.stop()
-  }, [getSelectedPronunciationIcon])
+    if (displayedPronunciationType !== pronunciationConfig.type) {
+      const displayedIcon = displayedPronunciationType === 'us' ? usPronunciationIconRef.current : ukPronunciationIconRef.current
+      displayedIcon?.stop()
+    }
+  }, [displayedPronunciationType, getSelectedPronunciationIcon, pronunciationConfig.type])
 
   const toggleManualPronunciation = useCallback(
     (type: 'us' | 'uk') => {
@@ -86,6 +92,16 @@ export default function WordPanel() {
     },
     [stopAllPronunciations],
   )
+
+  const toggleDisplayedPronunciation = useCallback(() => {
+    emitHotkeyAction('stopWordPronunciation')
+    stopAllPronunciations()
+    setDisplayedPronunciationType((current) => (current === 'us' ? 'uk' : 'us'))
+  }, [stopAllPronunciations])
+
+  useEffect(() => {
+    setDisplayedPronunciationType(preferredPronunciationType)
+  }, [activeWordName, preferredPronunciationType])
 
   const showToast = useCallback((msg: string) => {
     if (toastTimerRef.current) {
@@ -283,37 +299,32 @@ export default function WordPanel() {
                 key={`${state.chapterData.index}-${wordRenderKey}`}
               />
               {languageCategory === 'en' ? (
-                <div className="mt-2 flex min-h-5 w-full flex-col items-center justify-center gap-x-5 gap-y-1 empty:hidden sm:flex-row">
-                  <div className="flex min-h-5 items-center justify-center gap-2 empty:hidden">
-                    {shouldShowPhonetic && <Phonetic word={activeWord} type="us" />}
-                    {shouldShowPronunciationButton && (
-                      <WordPronunciationIcon
-                        word={activeWord}
-                        lang={currentDictionary.language}
-                        pronunciationType="us"
-                        ref={usPronunciationIconRef}
-                        isPlaying={isWordPlaying && pronunciationConfig.type === 'us'}
-                        onClick={() => toggleManualPronunciation('us')}
-                        ariaLabel="播放美音"
-                        className="h-5 w-5 shrink-0"
-                      />
-                    )}
-                  </div>
-                  <div className="flex min-h-5 items-center justify-center gap-2 empty:hidden">
-                    {shouldShowPhonetic && <Phonetic word={activeWord} type="uk" />}
-                    {shouldShowPronunciationButton && (
-                      <WordPronunciationIcon
-                        word={activeWord}
-                        lang={currentDictionary.language}
-                        pronunciationType="uk"
-                        ref={ukPronunciationIconRef}
-                        isPlaying={isWordPlaying && pronunciationConfig.type === 'uk'}
-                        onClick={() => toggleManualPronunciation('uk')}
-                        ariaLabel="播放英音"
-                        className="h-5 w-5 shrink-0"
-                      />
-                    )}
-                  </div>
+                <div className="mt-2 flex min-h-5 w-full items-center justify-center gap-2 empty:hidden">
+                  {shouldShowPhonetic && (
+                    <Tooltip content={`临时查看${displayedPronunciationType === 'us' ? '英音' : '美音'}音标`}>
+                      <button
+                        type="button"
+                        onClick={toggleDisplayedPronunciation}
+                        className="inline-flex h-5 w-5 shrink-0 items-center justify-center text-[var(--muted)] transition-colors hover:text-[var(--primary)] focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--canvas)] focus-visible:outline-none"
+                        aria-label={`临时查看${displayedPronunciationType === 'us' ? '英音' : '美音'}音标`}
+                      >
+                        <ArrowLeftRight className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
+                      </button>
+                    </Tooltip>
+                  )}
+                  {shouldShowPhonetic && <Phonetic word={activeWord} type={displayedPronunciationType} />}
+                  {shouldShowPronunciationButton && (
+                    <WordPronunciationIcon
+                      word={activeWord}
+                      lang={currentDictionary.language}
+                      pronunciationType={displayedPronunciationType}
+                      ref={displayedPronunciationType === 'us' ? usPronunciationIconRef : ukPronunciationIconRef}
+                      isPlaying={isWordPlaying && pronunciationConfig.type === displayedPronunciationType}
+                      onClick={() => toggleManualPronunciation(displayedPronunciationType)}
+                      ariaLabel={`播放${displayedPronunciationType === 'us' ? '美音' : '英音'}`}
+                      className="h-5 w-5 shrink-0"
+                    />
+                  )}
                 </div>
               ) : (
                 <div className="mt-2 flex min-h-5 w-full items-center justify-center empty:hidden">

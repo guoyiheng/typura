@@ -1,9 +1,12 @@
 import { WordPronunciationIcon } from '@/components/WordPronunciationIcon'
+import Tooltip from '@/components/Tooltip'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { pronunciationConfigAtom } from '@/store'
 import type { Word } from '@/typings'
 import { getWordExample, getWordPhonetic } from '@/utils/wordExample'
 import type { WordExample, WordPhonetic } from '@/utils/wordExample'
-import { BookOpenText, Quote } from 'lucide-react'
+import { useAtomValue } from 'jotai'
+import { ArrowLeftRight, BookOpenText, Quote } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 function normalizePhonetic(value: string) {
@@ -15,6 +18,9 @@ export function BookWordDialog({ word, onClose }: { word: Word | null; onClose: 
   const [example, setExample] = useState<WordExample | null>(null)
   const [phonetic, setPhonetic] = useState<WordPhonetic | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const pronunciationConfig = useAtomValue(pronunciationConfigAtom)
+  const preferredPronunciationType = pronunciationConfig.type === 'us' ? 'us' : 'uk'
+  const [displayedPronunciationType, setDisplayedPronunciationType] = useState<'us' | 'uk'>(preferredPronunciationType)
 
   useEffect(() => {
     if (!lookup) return
@@ -34,12 +40,19 @@ export function BookWordDialog({ word, onClose }: { word: Word | null; onClose: 
     return () => controller.abort()
   }, [lookup])
 
+  useEffect(() => {
+    setDisplayedPronunciationType(preferredPronunciationType)
+  }, [lookup, preferredPronunciationType])
+
   const pronunciationWord: Word = {
     name: lookup,
     trans: [],
     usphone: phonetic?.usphone ?? '',
     ukphone: phonetic?.ukphone ?? '',
   }
+  const displayedPhonetic = displayedPronunciationType === 'us' ? phonetic?.usphone : phonetic?.ukphone
+  const displayedAccentLabel = displayedPronunciationType === 'us' ? 'US' : 'UK'
+  const alternateAccentName = displayedPronunciationType === 'us' ? '英音' : '美音'
 
   return (
     <Dialog open={Boolean(word)} onOpenChange={(open) => !open && onClose()}>
@@ -51,29 +64,27 @@ export function BookWordDialog({ word, onClose }: { word: Word | null; onClose: 
           </p>
           <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
             <DialogTitle className="font-display text-4xl leading-none font-semibold">{lookup}</DialogTitle>
-            <div className="flex items-center gap-3 pb-0.5">
-              <span className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
-                <span className="font-semibold text-[var(--body)]">US</span>
-                {phonetic?.usphone ? `/${normalizePhonetic(phonetic.usphone)}/` : '音标读取中'}
-                <WordPronunciationIcon
-                  word={pronunciationWord}
-                  lang="en"
-                  pronunciationType="us"
-                  className="h-4 w-4"
-                  ariaLabel={`播放 ${lookup} 美音`}
-                />
-              </span>
-              <span className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
-                <span className="font-semibold text-[var(--body)]">UK</span>
-                {phonetic?.ukphone ? `/${normalizePhonetic(phonetic.ukphone)}/` : '音标读取中'}
-                <WordPronunciationIcon
-                  word={pronunciationWord}
-                  lang="en"
-                  pronunciationType="uk"
-                  className="h-4 w-4"
-                  ariaLabel={`播放 ${lookup} 英音`}
-                />
-              </span>
+            <div className="flex items-center gap-1.5 pb-0.5 text-xs text-[var(--muted)]">
+              <Tooltip content={`临时查看${alternateAccentName}音标`}>
+                <button
+                  type="button"
+                  onClick={() => setDisplayedPronunciationType((current) => (current === 'us' ? 'uk' : 'us'))}
+                  className="inline-flex h-4 w-4 shrink-0 items-center justify-center transition-colors hover:text-[var(--primary)] focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--canvas)] focus-visible:outline-none"
+                  aria-label={`临时查看${alternateAccentName}音标`}
+                >
+                  <ArrowLeftRight className="h-3 w-3" strokeWidth={1.8} aria-hidden="true" />
+                </button>
+              </Tooltip>
+              <span className="font-semibold text-[var(--body)]">{displayedAccentLabel}</span>
+              <span>{displayedPhonetic ? `/${normalizePhonetic(displayedPhonetic)}/` : '音标读取中'}</span>
+              <WordPronunciationIcon
+                key={displayedPronunciationType}
+                word={pronunciationWord}
+                lang="en"
+                pronunciationType={displayedPronunciationType}
+                className="h-4 w-4"
+                ariaLabel={`播放 ${lookup} ${displayedPronunciationType === 'us' ? '美音' : '英音'}`}
+              />
             </div>
           </div>
           <DialogDescription className="sr-only">查看单词音标、发音和例句</DialogDescription>
