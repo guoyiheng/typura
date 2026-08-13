@@ -51,7 +51,7 @@ export default function MnemonicDetails({ word, translations, showMeaning, mnemo
 
   const meaning = useMemo(() => mnemonic?.meaning ?? simplifyLocalMeaning(translations), [mnemonic?.meaning, translations])
   const imageUrl = imageFailed ? null : mnemonic?.imageUrl
-  const hasMemoryCue = Boolean(imageUrl || mnemonic?.rootAnalysis)
+  const hasMemoryCue = Boolean(mnemonic?.similarWords.length || imageUrl || mnemonic?.rootAnalysis)
 
   const openSimilarWord = (similarWord: string) => {
     resumeTypingRef.current = practiceContext?.state.isTyping ?? false
@@ -72,8 +72,21 @@ export default function MnemonicDetails({ word, translations, showMeaning, mnemo
   return (
     <div className={`mnemonic-details mnemonic-details--${part}`} aria-label={`${word} 助记信息`}>
       {part === 'meaning' && (
-        <>
-          {showMeaning && Boolean(mnemonic?.similarWords.length) && (
+        <div className="mnemonic-details__meaning" aria-live="polite">
+          {showMeaning ? (
+            <p>
+              <strong>{meaning.primary}</strong>
+              {meaning.secondary.length > 0 && <span> · {meaning.secondary.join(' · ')}</span>}
+            </p>
+          ) : (
+            <p aria-hidden="true">&nbsp;</p>
+          )}
+        </div>
+      )}
+
+      {part === 'memory' && (
+        <div className="mnemonic-details__memory">
+          {Boolean(mnemonic?.similarWords.length) && (
             <div className="mnemonic-details__similar" aria-label="易混单词">
               <Network aria-hidden="true" />
               <div>
@@ -86,22 +99,7 @@ export default function MnemonicDetails({ word, translations, showMeaning, mnemo
               </div>
             </div>
           )}
-          <div className="mnemonic-details__meaning" aria-live="polite">
-            {showMeaning ? (
-              <p>
-                <strong>{meaning.primary}</strong>
-                {meaning.secondary.length > 0 && <span> · {meaning.secondary.join(' · ')}</span>}
-              </p>
-            ) : (
-              <p aria-hidden="true">&nbsp;</p>
-            )}
-          </div>
-          <WordDetailsDialog word={selectedSimilarWord} onClose={closeSimilarWord} />
-        </>
-      )}
 
-      {part === 'memory' && (
-        <div className="mnemonic-details__memory">
           {mnemonic?.rootAnalysis && (
             <div className="mnemonic-details__origin">
               <span>词根 / 来源</span>
@@ -136,6 +134,8 @@ export default function MnemonicDetails({ word, translations, showMeaning, mnemo
               />
             </figure>
           )}
+
+          <WordDetailsDialog word={selectedSimilarWord} onClose={closeSimilarWord} />
         </div>
       )}
     </div>
