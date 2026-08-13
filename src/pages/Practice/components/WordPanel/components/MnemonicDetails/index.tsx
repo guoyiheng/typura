@@ -75,14 +75,6 @@ export default function MnemonicDetails({ word, translations, showMeaning, mnemo
 
           {imageUrl && (
             <figure className="mnemonic-details__visual">
-              <img
-                src={imageUrl}
-                alt={`与 ${word} 常用义相关的核心画面`}
-                loading="eager"
-                decoding="async"
-                referrerPolicy="no-referrer"
-                onError={() => setImageFailed(true)}
-              />
               <figcaption>
                 核心画面
                 {mnemonic?.imageSource && (
@@ -98,6 +90,14 @@ export default function MnemonicDetails({ word, translations, showMeaning, mnemo
                   </>
                 )}
               </figcaption>
+              <img
+                src={imageUrl}
+                alt={`与 ${word} 常用义相关的核心画面`}
+                loading="eager"
+                decoding="async"
+                referrerPolicy="no-referrer"
+                onError={() => setImageFailed(true)}
+              />
             </figure>
           )}
         </div>

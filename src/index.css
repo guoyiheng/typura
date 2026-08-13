@@ -255,12 +255,12 @@ button,
 }
 
 .mnemonic-details__visual figcaption {
-  margin-top: 5px;
+  margin-bottom: 5px;
   color: var(--muted);
-  font-size: 9px;
-  font-weight: 500;
-  line-height: 1.35;
-  text-align: left;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
 }
 
 .mnemonic-details__visual figcaption a {
