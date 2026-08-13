@@ -1,5 +1,8 @@
+import { WordDetailsDialog } from '@/components/WordDetailsDialog'
+import { PracticeActionType, PracticeContext } from '@/pages/Practice/store'
 import type { WordMnemonic } from '@/utils/wordExample'
-import { useEffect, useMemo, useState } from 'react'
+import { Network } from 'lucide-react'
+import { useContext, useEffect, useMemo, useRef, useState } from 'react'
 
 type MnemonicDetailsProps = {
   word: string
@@ -37,7 +40,10 @@ function simplifyLocalMeaning(translations: string[]): NonNullable<WordMnemonic[
 }
 
 export default function MnemonicDetails({ word, translations, showMeaning, mnemonic, part = 'meaning' }: MnemonicDetailsProps) {
+  const practiceContext = useContext(PracticeContext)
   const [imageFailed, setImageFailed] = useState(false)
+  const [selectedSimilarWord, setSelectedSimilarWord] = useState<string | null>(null)
+  const resumeTypingRef = useRef(false)
 
   useEffect(() => {
     setImageFailed(false)
@@ -47,21 +53,51 @@ export default function MnemonicDetails({ word, translations, showMeaning, mnemo
   const imageUrl = imageFailed ? null : mnemonic?.imageUrl
   const hasMemoryCue = Boolean(imageUrl || mnemonic?.rootAnalysis)
 
+  const openSimilarWord = (similarWord: string) => {
+    resumeTypingRef.current = practiceContext?.state.isTyping ?? false
+    practiceContext?.dispatch({ type: PracticeActionType.SET_IS_TYPING, payload: false })
+    setSelectedSimilarWord(similarWord)
+  }
+
+  const closeSimilarWord = () => {
+    setSelectedSimilarWord(null)
+    if (resumeTypingRef.current) {
+      practiceContext?.dispatch({ type: PracticeActionType.SET_IS_TYPING, payload: true })
+    }
+    resumeTypingRef.current = false
+  }
+
   if (part === 'memory' && !hasMemoryCue) return null
 
   return (
     <div className={`mnemonic-details mnemonic-details--${part}`} aria-label={`${word} 助记信息`}>
       {part === 'meaning' && (
-        <div className="mnemonic-details__meaning" aria-live="polite">
-          {showMeaning ? (
-            <p>
-              <strong>{meaning.primary}</strong>
-              {meaning.secondary.length > 0 && <span> · {meaning.secondary.join(' · ')}</span>}
-            </p>
-          ) : (
-            <p aria-hidden="true">&nbsp;</p>
+        <>
+          {showMeaning && Boolean(mnemonic?.similarWords.length) && (
+            <div className="mnemonic-details__similar" aria-label="易混单词">
+              <Network aria-hidden="true" />
+              <div>
+                {mnemonic?.similarWords.map((item) => (
+                  <button key={item.word} type="button" onClick={() => openSimilarWord(item.word)}>
+                    <strong>{item.word}</strong>
+                    <span>{item.meaning}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
-        </div>
+          <div className="mnemonic-details__meaning" aria-live="polite">
+            {showMeaning ? (
+              <p>
+                <strong>{meaning.primary}</strong>
+                {meaning.secondary.length > 0 && <span> · {meaning.secondary.join(' · ')}</span>}
+              </p>
+            ) : (
+              <p aria-hidden="true">&nbsp;</p>
+            )}
+          </div>
+          <WordDetailsDialog word={selectedSimilarWord} onClose={closeSimilarWord} />
+        </>
       )}
 
       {part === 'memory' && (

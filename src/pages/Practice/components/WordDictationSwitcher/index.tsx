@@ -1,5 +1,5 @@
 import Tooltip from '@/components/Tooltip'
-import { wordDictationConfigAtom } from '@/store'
+import { isMnemonicEnabledAtom, wordDictationConfigAtom } from '@/store'
 import type { WordDictationType } from '@/typings'
 import { useHotkeyAction } from '@/utils/hotkeyBus'
 import { Listbox, Popover, PopoverButton, PopoverPanel, Transition } from '@headlessui/react'
@@ -16,6 +16,7 @@ const dictationModeOptions: { label: string; value: WordDictationType }[] = [
 
 export default function WordDictationSwitcher() {
   const [dictationSettings, setDictationSettings] = useAtom(wordDictationConfigAtom)
+  const [isMnemonicEnabled, setIsMnemonicEnabled] = useAtom(isMnemonicEnabledAtom)
   const selectedMode = dictationModeOptions.find((option) => option.value === dictationSettings.type) ?? dictationModeOptions[0]
 
   const setDictationEnabled = (isOpen: boolean) => {
@@ -219,6 +220,24 @@ export default function WordDictationSwitcher() {
               </div>
             </div>
           )}
+
+          <div className="mt-4 flex items-center justify-between gap-4 border-t border-[var(--line)] pt-4">
+            <div>
+              <p className="text-xs font-medium text-[var(--ink)]">助记信息</p>
+              <p className="text-[11px] text-[var(--muted)]">显示易混单词、词根来源和核心画面</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={isMnemonicEnabled}
+              aria-label="助记信息"
+              data-state={isMnemonicEnabled ? 'checked' : 'unchecked'}
+              className="switch-root"
+              onClick={() => setIsMnemonicEnabled((current) => !current)}
+            >
+              <span aria-hidden="true" className="switch-thumb" />
+            </button>
+          </div>
         </PopoverPanel>
       </Transition>
     </Popover>

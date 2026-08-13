@@ -11,6 +11,7 @@ import { usePrefetchPronunciationSound } from '@/hooks/usePronunciation'
 import {
   currentDictInfoAtom,
   hotkeysConfigAtom,
+  isMnemonicEnabledAtom,
   isReviewModeAtom,
   isZenModeAtom,
   loopWordConfigAtom,
@@ -38,6 +39,7 @@ export default function WordPanel() {
   const currentDictionary = useAtomValue(currentDictInfoAtom)
   const languageCategory = currentDictionary.languageCategory
   const isZenMode = useAtomValue(isZenModeAtom)
+  const isMnemonicEnabled = useAtomValue(isMnemonicEnabledAtom)
   const pronunciationConfig = useAtomValue(pronunciationConfigAtom)
   const dictationSettings = useAtomValue(wordDictationConfigAtom)
   const [isWordComplete, setIsWordComplete] = useState(false)
@@ -261,7 +263,8 @@ export default function WordPanel() {
   const shouldShowTranslation = useMemo(() => {
     return isTranslationHovered || state.isTransVisible
   }, [isTranslationHovered, state.isTransVisible])
-  const shouldShowMnemonicDetails = languageCategory === 'en' && (!dictationSettings.isOpen || isWordComplete)
+  const shouldShowMnemonicDetails =
+    isMnemonicEnabled && languageCategory === 'en' && (!dictationSettings.isOpen || isWordComplete)
 
   return (
     <div className="relative container flex h-full w-full flex-col items-center justify-center">

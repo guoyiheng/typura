@@ -205,6 +205,68 @@ button,
   padding: 0 12px;
 }
 
+.mnemonic-details__similar {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 9px;
+  padding: 0 12px;
+  color: var(--muted);
+}
+
+.mnemonic-details__similar > svg {
+  width: 13px;
+  height: 13px;
+  margin-top: 4px;
+  flex: none;
+  stroke-width: 1.8;
+}
+
+.mnemonic-details__similar > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 18px;
+}
+
+.mnemonic-details__similar button {
+  display: inline-flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 6px;
+  padding: 0;
+  color: inherit;
+  font-size: 12px;
+  line-height: 1.7;
+  text-align: left;
+  transition: color 150ms ease;
+}
+
+.mnemonic-details__similar button:hover,
+.mnemonic-details__similar button:focus-visible {
+  color: var(--primary);
+  outline: none;
+}
+
+.mnemonic-details__similar button:focus-visible {
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px var(--primary-soft);
+}
+
+.mnemonic-details__similar button strong {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 650;
+  transition: color 150ms ease;
+}
+
+.mnemonic-details__similar button:hover strong,
+.mnemonic-details__similar button:focus-visible strong {
+  color: var(--primary);
+}
+
 .mnemonic-details__meaning p {
   margin: 0;
   color: var(--muted);
@@ -678,6 +740,14 @@ button,
 
   .mnemonic-details__meaning p {
     font-size: 13px;
+  }
+
+  .mnemonic-details__similar {
+    padding: 0 4px;
+  }
+
+  .mnemonic-details__similar > div {
+    gap: 3px 12px;
   }
 
   .mnemonic-details__meaning strong {

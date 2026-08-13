@@ -2,7 +2,7 @@ const JSON_CACHE_CONTROL = 'public, max-age=3600, s-maxage=604800, stale-while-r
 const MISSING_EXAMPLE_CACHE_CONTROL = 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=3600'
 const MAX_WORD_LENGTH = 80
 const MAX_JSON_BYTES = 2 * 1024 * 1024
-const EXAMPLE_CACHE_VERSION = '9'
+const EXAMPLE_CACHE_VERSION = '11'
 const IMAGE_CACHE_VERSION = '1'
 const MISSING_EXAMPLE_CACHE_TTL = 24 * 60 * 60 * 1000
 
@@ -16,15 +16,22 @@ type WordPhonetic = {
   ukphone: string
 }
 
+type SimilarWord = {
+  word: string
+  meaning: string
+}
+
 type WordMnemonic = {
   meaning: {
     primary: string
     secondary: string[]
   } | null
+  fullMeanings: string[]
   rootAnalysis: string | null
   imageUrl: string | null
   imageSource: string | null
   imageSourceUrl: string | null
+  similarWords: SimilarWord[]
 }
 
 function jsonResponse(data: unknown, init: ResponseInit = {}) {
@@ -115,6 +122,16 @@ function cleanSenseText(value: string) {
     .trim()
 }
 
+function compactCandidateMeaning(value: string) {
+  const firstClause = cleanMeaningText(value).split(/[；;]/)[0] ?? ''
+  return firstClause
+    .split(/[，,、]/)
+    .map(cleanSenseText)
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('、')
+}
+
 function parseWordMeaning(payload: unknown): WordMnemonic['meaning'] {
   const ecWords = getRecordValue(payload, 'ec')?.word
 
@@ -154,6 +171,206 @@ function parseWordMeaning(payload: unknown): WordMnemonic['meaning'] {
   }
 
   return null
+}
+
+function parseFullMeanings(payload: unknown) {
+  const ecWords = getRecordValue(payload, 'ec')?.word
+  const meanings: string[] = []
+
+  for (const wordEntry of getArray(ecWords)) {
+    if (!isRecord(wordEntry)) continue
+    for (const translation of getArray(wordEntry.trs)) {
+      if (!isRecord(translation)) continue
+      for (const translationEntry of getArray(translation.tr)) {
+        if (!isRecord(translationEntry)) continue
+        const rawMeanings = getRecordValue(translationEntry, 'l')?.i
+        for (const rawMeaning of getArray(rawMeanings)) {
+          if (typeof rawMeaning !== 'string' || rawMeaning.startsWith('【名】')) continue
+          const meaning = rawMeaning.replace(/\s+/g, ' ').trim()
+          if (meaning && !meanings.includes(meaning)) meanings.push(meaning)
+        }
+      }
+    }
+  }
+
+  return meanings.slice(0, 8)
+}
+
+type SimilarWordCandidate = {
+  word: string
+  meaning?: string
+  isSameRoot: boolean
+}
+
+function getDamerauLevenshteinDistance(left: string, right: string) {
+  const rows = left.length + 1
+  const columns = right.length + 1
+  const matrix = Array.from({ length: rows }, () => Array<number>(columns).fill(0))
+
+  for (let row = 0; row < rows; row += 1) matrix[row][0] = row
+  for (let column = 0; column < columns; column += 1) matrix[0][column] = column
+
+  for (let row = 1; row < rows; row += 1) {
+    for (let column = 1; column < columns; column += 1) {
+      const cost = left[row - 1] === right[column - 1] ? 0 : 1
+      matrix[row][column] = Math.min(
+        matrix[row - 1][column] + 1,
+        matrix[row][column - 1] + 1,
+        matrix[row - 1][column - 1] + cost,
+      )
+
+      if (
+        row > 1 &&
+        column > 1 &&
+        left[row - 1] === right[column - 2] &&
+        left[row - 2] === right[column - 1]
+      ) {
+        matrix[row][column] = Math.min(matrix[row][column], matrix[row - 2][column - 2] + cost)
+      }
+    }
+  }
+
+  return matrix[left.length][right.length]
+}
+
+function getCommonPrefixLength(left: string, right: string) {
+  const maxLength = Math.min(left.length, right.length)
+  let length = 0
+  while (length < maxLength && left[length] === right[length]) length += 1
+  return length
+}
+
+function isVisuallySimilar(sourceWord: string, candidateWord: string, isSameRoot: boolean) {
+  if (!/^[a-z]+$/.test(candidateWord) || candidateWord === sourceWord) return false
+  const distance = getDamerauLevenshteinDistance(sourceWord, candidateWord)
+  const maxLength = Math.max(sourceWord.length, candidateWord.length)
+  const similarity = 1 - distance / maxLength
+  const commonPrefixLength = getCommonPrefixLength(sourceWord, candidateWord)
+
+  if (isSameRoot) return similarity >= 0.46 || commonPrefixLength >= Math.min(4, sourceWord.length - 1)
+  if (maxLength <= 5) return distance <= 1
+  return distance <= 2 && similarity >= 0.64
+}
+
+function addSimilarCandidate(
+  candidates: Map<string, SimilarWordCandidate>,
+  sourceWord: string,
+  wordValue: unknown,
+  meaningValue: unknown,
+  isSameRoot: boolean,
+) {
+  if (typeof wordValue !== 'string') return
+  const word = normalizeWord(wordValue)
+  if (!isValidWord(word) || word.includes(' ') || !isVisuallySimilar(sourceWord, word, isSameRoot)) return
+
+  const meaning = typeof meaningValue === 'string' ? compactCandidateMeaning(meaningValue) : undefined
+  const existing = candidates.get(word)
+  candidates.set(word, {
+    word,
+    meaning: existing?.meaning || meaning,
+    isSameRoot: existing?.isSameRoot || isSameRoot,
+  })
+}
+
+function parseRelatedWordCandidates(payload: unknown, sourceWord: string) {
+  const candidates = new Map<string, SimilarWordCandidate>()
+  const relGroups = getRecordValue(payload, 'rel_word')?.rels
+
+  for (const relGroup of getArray(relGroups)) {
+    if (!isRecord(relGroup)) continue
+    const words = getRecordValue(relGroup, 'rel')?.words
+    for (const wordEntry of getArray(words)) {
+      if (!isRecord(wordEntry)) continue
+      addSimilarCandidate(candidates, sourceWord, wordEntry.word, wordEntry.tran, true)
+    }
+  }
+
+  const discriminateGroups = getRecordValue(payload, 'discriminate')?.data
+  for (const group of getArray(discriminateGroups)) {
+    if (!isRecord(group)) continue
+    for (const headword of getArray(group.headwords)) {
+      addSimilarCandidate(candidates, sourceWord, headword, undefined, false)
+    }
+  }
+
+  return candidates
+}
+
+async function fetchSpellingCandidates(sourceWord: string) {
+  const prefixLength = Math.min(Math.max(3, sourceWord.length - 2), 5)
+  const suggestUrl = new URL('https://dict.youdao.com/suggest')
+  suggestUrl.searchParams.set('num', '30')
+  suggestUrl.searchParams.set('doctype', 'json')
+  suggestUrl.searchParams.set('q', sourceWord.slice(0, prefixLength))
+
+  try {
+    const response = await fetch(suggestUrl, {
+      headers: { Accept: 'application/json', 'User-Agent': 'typura/1.0' },
+      signal: AbortSignal.timeout(1800),
+    })
+    if (!response.ok) return []
+    const payload: unknown = await response.json()
+    const entries = getRecordValue(getRecordValue(payload, 'data') ?? {}, 'entries')
+    return getArray(entries).filter(isRecord)
+  } catch {
+    return []
+  }
+}
+
+async function fetchWordPayload(word: string, signal?: AbortSignal) {
+  const upstreamUrl = new URL('https://dict.youdao.com/jsonapi')
+  upstreamUrl.searchParams.set('q', word)
+
+  const response = await fetch(upstreamUrl, {
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'typura/1.0',
+    },
+    signal,
+  })
+  if (!response.ok) return null
+
+  const contentLength = Number(response.headers.get('Content-Length') ?? 0)
+  if (contentLength > MAX_JSON_BYTES) return null
+
+  try {
+    return (await response.json()) as unknown
+  } catch {
+    return null
+  }
+}
+
+async function getSimilarWords(payload: unknown, sourceWord: string): Promise<SimilarWord[]> {
+  const candidateMap = parseRelatedWordCandidates(payload, sourceWord)
+  const spellingCandidates = await fetchSpellingCandidates(sourceWord)
+  for (const entry of spellingCandidates) {
+    addSimilarCandidate(candidateMap, sourceWord, entry.entry, entry.explain, false)
+  }
+
+  const candidates = [...candidateMap.values()]
+    .sort((left, right) => {
+      const leftDistance = getDamerauLevenshteinDistance(sourceWord, left.word)
+      const rightDistance = getDamerauLevenshteinDistance(sourceWord, right.word)
+      const leftScore = leftDistance / Math.max(sourceWord.length, left.word.length) - (left.isSameRoot ? 0.08 : 0)
+      const rightScore = rightDistance / Math.max(sourceWord.length, right.word.length) - (right.isSameRoot ? 0.08 : 0)
+      return leftScore - rightScore || left.word.length - right.word.length || left.word.localeCompare(right.word)
+    })
+    .slice(0, 8)
+
+  const results = await Promise.allSettled(
+    candidates.map(async (candidate) => {
+      if (candidate.meaning) return { word: candidate.word, meaning: candidate.meaning }
+      const relatedPayload = await fetchWordPayload(candidate.word, AbortSignal.timeout(2500))
+      const meaning = parseWordMeaning(relatedPayload)?.primary
+      return meaning ? { word: candidate.word, meaning } : null
+    }),
+  )
+
+  return results
+    .filter((result): result is PromiseFulfilledResult<SimilarWord | null> => result.status === 'fulfilled')
+    .map((result) => result.value)
+    .filter((item): item is SimilarWord => item !== null)
+    .slice(0, 5)
 }
 
 function getEtymologyValues(payload: unknown, language: 'zh' | 'en') {
@@ -226,14 +443,16 @@ function parseWordImage(payload: unknown) {
   }
 }
 
-function parseWordMnemonic(payload: unknown, word: string): WordMnemonic {
+function parseWordMnemonic(payload: unknown, word: string, similarWords: SimilarWord[]): WordMnemonic {
   const image = parseWordImage(payload)
   return {
     meaning: parseWordMeaning(payload),
+    fullMeanings: parseFullMeanings(payload),
     rootAnalysis: parseRootAnalysis(payload, word),
     imageUrl: image?.imageUrl ?? null,
     imageSource: image?.imageSource ?? null,
     imageSourceUrl: image?.imageSourceUrl ?? null,
+    similarWords,
   }
 }
 
@@ -318,42 +537,31 @@ async function handleWordExample(request: Request, ctx: ExecutionContext) {
     if (status === 'hit' || (status === 'missing' && isFreshMissingExample(cachedResponse))) return cachedResponse
   }
 
-  const upstreamUrl = new URL('https://dict.youdao.com/jsonapi')
-  upstreamUrl.searchParams.set('q', word)
-
-  let upstreamResponse: Response
+  let payload: unknown
   try {
-    upstreamResponse = await fetch(upstreamUrl, {
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'typura/1.0',
-      },
-    })
+    payload = await fetchWordPayload(word)
   } catch (error) {
     console.error('Word example upstream request failed', error)
     return jsonResponse({ error: 'upstream_unavailable' }, { status: 502, headers: { 'Cache-Control': 'no-store' } })
   }
 
-  if (!upstreamResponse.ok) {
+  if (!payload) {
     return jsonResponse({ error: 'upstream_error' }, { status: 502, headers: { 'Cache-Control': 'no-store' } })
-  }
-
-  const contentLength = Number(upstreamResponse.headers.get('Content-Length') ?? 0)
-  if (contentLength > MAX_JSON_BYTES) {
-    return jsonResponse({ error: 'upstream_response_too_large' }, { status: 502, headers: { 'Cache-Control': 'no-store' } })
-  }
-
-  let payload: unknown
-  try {
-    payload = await upstreamResponse.json()
-  } catch {
-    return jsonResponse({ error: 'invalid_upstream_response' }, { status: 502, headers: { 'Cache-Control': 'no-store' } })
   }
 
   const example = parseWordExample(payload)
   const phonetic = parseWordPhonetic(payload)
-  const mnemonic = parseWordMnemonic(payload, word)
-  const hasDetails = Boolean(example || phonetic || mnemonic.meaning || mnemonic.rootAnalysis || mnemonic.imageUrl)
+  const similarWords = await getSimilarWords(payload, word)
+  const mnemonic = parseWordMnemonic(payload, word, similarWords)
+  const hasDetails = Boolean(
+    example ||
+    phonetic ||
+    mnemonic.meaning ||
+    mnemonic.fullMeanings.length ||
+    mnemonic.rootAnalysis ||
+    mnemonic.imageUrl ||
+    mnemonic.similarWords.length,
+  )
   const headers = new Headers({
     'Cache-Control': hasDetails ? JSON_CACHE_CONTROL : MISSING_EXAMPLE_CACHE_CONTROL,
     'X-Typura-Example-Cache-Version': EXAMPLE_CACHE_VERSION,

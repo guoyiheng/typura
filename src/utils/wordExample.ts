@@ -4,8 +4,8 @@ import Dexie from 'dexie'
 const EXAMPLE_CACHE_TTL = 30 * 24 * 60 * 60 * 1000
 const MISSING_EXAMPLE_CACHE_TTL = 24 * 60 * 60 * 1000
 const FAILURE_RETRY_DELAY = 5 * 60 * 1000
-const CACHE_VERSION = 10
-const REQUEST_TIMEOUT = 5000
+const CACHE_VERSION = 11
+const REQUEST_TIMEOUT = 8000
 const IMAGE_REQUEST_TIMEOUT = 2500
 const DEFAULT_WORD_API_BASE = ''
 
@@ -22,28 +22,37 @@ export type WordPhonetic = {
   ukphone: string
 }
 
+export type SimilarWord = {
+  word: string
+  meaning: string
+}
+
 export type WordMnemonic = {
   meaning: {
     primary: string
     secondary: string[]
   } | null
+  fullMeanings: string[]
   rootAnalysis: string | null
   imageUrl: string | null
   imageSource?: string | null
   imageSourceUrl?: string | null
+  similarWords: SimilarWord[]
 }
 
 type WordMnemonicImage = Pick<WordMnemonic, 'imageUrl' | 'imageSource' | 'imageSourceUrl'>
 
 const EMPTY_MNEMONIC: WordMnemonic = {
   meaning: null,
+  fullMeanings: [],
   rootAnalysis: null,
   imageUrl: null,
   imageSource: null,
   imageSourceUrl: null,
+  similarWords: [],
 }
 
-type WordDetails = {
+export type WordDetails = {
   example: WordExample | null
   phonetic: WordPhonetic | null
   mnemonic: WordMnemonic
@@ -97,6 +106,8 @@ function isWordMnemonic(value: unknown): value is WordMnemonic {
   if (typeof value !== 'object' || value === null) return false
   const mnemonic = value as Record<string, unknown>
   const meaning = mnemonic.meaning
+  const fullMeanings = mnemonic.fullMeanings
+  const similarWords = mnemonic.similarWords
   const isMeaningValid =
     meaning === null ||
     (typeof meaning === 'object' &&
@@ -106,10 +117,21 @@ function isWordMnemonic(value: unknown): value is WordMnemonic {
 
   return (
     isMeaningValid &&
+    Array.isArray(fullMeanings) &&
+    fullMeanings.every((item) => typeof item === 'string') &&
     (mnemonic.rootAnalysis === null || typeof mnemonic.rootAnalysis === 'string') &&
     (mnemonic.imageUrl === null || typeof mnemonic.imageUrl === 'string') &&
     (mnemonic.imageSource === undefined || mnemonic.imageSource === null || typeof mnemonic.imageSource === 'string') &&
-    (mnemonic.imageSourceUrl === undefined || mnemonic.imageSourceUrl === null || typeof mnemonic.imageSourceUrl === 'string')
+    (mnemonic.imageSourceUrl === undefined || mnemonic.imageSourceUrl === null || typeof mnemonic.imageSourceUrl === 'string') &&
+    Array.isArray(similarWords) &&
+    similarWords.length <= 5 &&
+    similarWords.every(
+      (item) =>
+        typeof item === 'object' &&
+        item !== null &&
+        typeof (item as Record<string, unknown>).word === 'string' &&
+        typeof (item as Record<string, unknown>).meaning === 'string',
+    )
   )
 }
 
@@ -161,8 +183,18 @@ type MemoryCachedWordExample = {
 
 const memoryExampleCache = new Map<string, MemoryCachedWordExample>()
 
+function normalizeMnemonic(mnemonic: WordMnemonic | undefined): WordMnemonic {
+  return mnemonic ? { ...EMPTY_MNEMONIC, ...mnemonic, similarWords: mnemonic.similarWords ?? [] } : EMPTY_MNEMONIC
+}
+
 function getCacheTTL(details: WordDetails) {
-  return details.example || details.phonetic || details.mnemonic.meaning || details.mnemonic.rootAnalysis || details.mnemonic.imageUrl
+  return details.example ||
+    details.phonetic ||
+    details.mnemonic.meaning ||
+    details.mnemonic.fullMeanings.length > 0 ||
+    details.mnemonic.rootAnalysis ||
+    details.mnemonic.imageUrl ||
+    details.mnemonic.similarWords.length > 0
     ? EXAMPLE_CACHE_TTL
     : MISSING_EXAMPLE_CACHE_TTL
 }
@@ -172,7 +204,7 @@ function hasWordDetails(details: WordDetails) {
 }
 
 function isFreshCachedExample(cached: CachedWordExample) {
-  const details = { example: cached.example, phonetic: cached.phonetic ?? null, mnemonic: cached.mnemonic ?? EMPTY_MNEMONIC }
+  const details = { example: cached.example, phonetic: cached.phonetic ?? null, mnemonic: normalizeMnemonic(cached.mnemonic) }
   return cached.version === CACHE_VERSION && Date.now() - cached.updatedAt < getCacheTTL(details)
 }
 
@@ -251,7 +283,7 @@ async function loadWordDetails(normalizedWord: string, signal?: AbortSignal): Pr
     const details = {
       example: cached.example,
       phonetic: await completeWordPhonetic(normalizedWord, cached.phonetic ?? null, signal),
-      mnemonic: cached.mnemonic ?? EMPTY_MNEMONIC,
+      mnemonic: normalizeMnemonic(cached.mnemonic),
     }
     if (details.phonetic !== cached.phonetic) await cacheDetails(normalizedWord, details)
     cacheMemoryDetails(normalizedWord, details, cached.updatedAt + getCacheTTL(details))
@@ -259,7 +291,7 @@ async function loadWordDetails(normalizedWord: string, signal?: AbortSignal): Pr
   }
   if (!hasWordApi()) {
     const fallbackPhonetic = await completeWordPhonetic(normalizedWord, cached?.phonetic ?? null, signal)
-    const fallback = { example: cached?.example ?? null, phonetic: fallbackPhonetic, mnemonic: cached?.mnemonic ?? EMPTY_MNEMONIC }
+    const fallback = { example: cached?.example ?? null, phonetic: fallbackPhonetic, mnemonic: normalizeMnemonic(cached?.mnemonic) }
     if (hasWordDetails(fallback)) {
       await cacheDetails(normalizedWord, fallback)
     }
@@ -284,7 +316,7 @@ async function loadWordDetails(normalizedWord: string, signal?: AbortSignal): Pr
     const detailsResponse = data as WordDetailsResponse
     const example = detailsResponse.example
     let phonetic = detailsResponse.phonetic ?? null
-    const mnemonic = detailsResponse.mnemonic ?? EMPTY_MNEMONIC
+    const mnemonic = normalizeMnemonic(detailsResponse.mnemonic)
     if (example !== null && !isWordExample(example)) throw new Error('Invalid word example payload')
     if (phonetic !== null && !isWordPhonetic(phonetic)) throw new Error('Invalid word phonetic payload')
     if (!isWordMnemonic(mnemonic)) throw new Error('Invalid word mnemonic payload')
@@ -298,7 +330,7 @@ async function loadWordDetails(normalizedWord: string, signal?: AbortSignal): Pr
   } catch (error) {
     if (!controller.signal.aborted) console.error('Failed to load word example', error)
     const fallbackPhonetic = await completeWordPhonetic(normalizedWord, cached?.phonetic ?? null, signal)
-    const fallback = { example: cached?.example ?? null, phonetic: fallbackPhonetic, mnemonic: cached?.mnemonic ?? EMPTY_MNEMONIC }
+    const fallback = { example: cached?.example ?? null, phonetic: fallbackPhonetic, mnemonic: normalizeMnemonic(cached?.mnemonic) }
     if (hasWordDetails(fallback)) {
       await cacheDetails(normalizedWord, fallback)
     }
@@ -310,7 +342,7 @@ async function loadWordDetails(normalizedWord: string, signal?: AbortSignal): Pr
   }
 }
 
-function getWordDetails(word: string, signal?: AbortSignal): Promise<WordDetails> {
+export function getWordDetails(word: string, signal?: AbortSignal): Promise<WordDetails> {
   const normalizedWord = normalizeWord(word)
   if (!normalizedWord) return Promise.resolve({ example: null, phonetic: null, mnemonic: EMPTY_MNEMONIC })
 
