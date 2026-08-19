@@ -4,7 +4,7 @@ import Dexie from 'dexie'
 const EXAMPLE_CACHE_TTL = 30 * 24 * 60 * 60 * 1000
 const MISSING_EXAMPLE_CACHE_TTL = 24 * 60 * 60 * 1000
 const FAILURE_RETRY_DELAY = 5 * 60 * 1000
-const CACHE_VERSION = 11
+const CACHE_VERSION = 12
 const REQUEST_TIMEOUT = 8000
 const IMAGE_REQUEST_TIMEOUT = 2500
 const DEFAULT_WORD_API_BASE = ''
@@ -15,6 +15,13 @@ const pendingImages = new Map<string, Promise<WordMnemonicImage>>()
 export type WordExample = {
   english: string
   chinese: string
+  audio?: {
+    url: string
+    source: 'Tatoeba'
+    author: string
+    license: string
+    attributionUrl: string
+  }
 }
 
 export type WordPhonetic = {
@@ -93,7 +100,18 @@ function normalizeWord(word: string) {
 function isWordExample(value: unknown): value is WordExample {
   if (typeof value !== 'object' || value === null) return false
   const example = value as Record<string, unknown>
-  return typeof example.english === 'string' && typeof example.chinese === 'string'
+  if (typeof example.english !== 'string' || typeof example.chinese !== 'string') return false
+  if (example.audio === undefined) return true
+  if (typeof example.audio !== 'object' || example.audio === null) return false
+
+  const audio = example.audio as Record<string, unknown>
+  return (
+    typeof audio.url === 'string' &&
+    audio.source === 'Tatoeba' &&
+    typeof audio.author === 'string' &&
+    typeof audio.license === 'string' &&
+    typeof audio.attributionUrl === 'string'
+  )
 }
 
 function isWordPhonetic(value: unknown): value is WordPhonetic {

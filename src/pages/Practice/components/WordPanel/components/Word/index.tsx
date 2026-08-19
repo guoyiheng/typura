@@ -105,7 +105,7 @@ export default function WordComponent({
   const updateWordStats = useSetAtom(wordStatsAtom)
   const keyboardShortcuts = useAtomValue(hotkeysConfigAtom)
   const currentWordIndex = state.chapterData.index
-  const [activeExample, setActiveExample] = useState<{ english: string; chinese: string } | null>(null)
+  const [activeExample, setActiveExample] = useState<WordExample | null>(null)
   const exampleAudioRef = useRef<HTMLAudioElement | null>(null)
   const exampleRequestRef = useRef<Promise<WordExample | null>>(Promise.resolve(null))
   const completionHandledRef = useRef(false)
@@ -122,6 +122,56 @@ export default function WordComponent({
     }
     setIsWordAudioPlaying(false)
   }, [])
+
+  const playExamplePronunciation = useCallback(
+    (example: WordExample, onEnded?: () => void, onFailed?: () => void) => {
+      const fallbackUrl = generateWordSoundSrc(example.english, pronunciationConfig.type)
+      const primaryUrl = example.audio?.url || fallbackUrl
+      if (!primaryUrl) {
+        onFailed?.()
+        return
+      }
+
+      exampleAudioRef.current?.pause()
+      let settled = false
+
+      const startAudio = (url: string, playbackRate: number, canFallback: boolean) => {
+        const audio = new Audio(url)
+        exampleAudioRef.current = audio
+        audio.volume = pronunciationConfig.volume
+        audio.playbackRate = playbackRate
+
+        const fail = () => {
+          if (settled || exampleAudioRef.current !== audio) return
+          if (canFallback && fallbackUrl) {
+            startAudio(fallbackUrl, pronunciationConfig.rate, false)
+            return
+          }
+          settled = true
+          setIsExamplePlaying(false)
+          onFailed?.()
+        }
+
+        audio.onplay = () => {
+          if (exampleAudioRef.current === audio) setIsExamplePlaying(true)
+        }
+        audio.onpause = () => {
+          if (exampleAudioRef.current === audio) setIsExamplePlaying(false)
+        }
+        audio.onended = () => {
+          if (settled || exampleAudioRef.current !== audio) return
+          settled = true
+          setIsExamplePlaying(false)
+          onEnded?.()
+        }
+        audio.onerror = fail
+        void audio.play().catch(fail)
+      }
+
+      startAudio(primaryUrl, example.audio ? 1 : pronunciationConfig.rate, Boolean(example.audio && fallbackUrl && primaryUrl !== fallbackUrl))
+    },
+    [pronunciationConfig.rate, pronunciationConfig.type, pronunciationConfig.volume],
+  )
 
   const playCurrentWordPronunciation = useCallback(() => {
     const url = generateWordSoundSrc(getPronunciationText(word, currentLanguage), pronunciationConfig.type)
@@ -281,26 +331,7 @@ export default function WordComponent({
         exampleAudioRef.current.pause()
         setIsExamplePlaying(false)
       } else {
-        const url = generateWordSoundSrc(activeExample.english, pronunciationConfig.type)
-        const audio = exampleAudioRef.current || new Audio(url)
-        exampleAudioRef.current = audio
-        audio.src = url
-        audio.volume = pronunciationConfig.volume
-        audio.playbackRate = pronunciationConfig.rate
-        audio.onplay = () => setIsExamplePlaying(true)
-        audio.onpause = () => setIsExamplePlaying(false)
-        audio.onended = () => {
-          setIsExamplePlaying(false)
-          onFinish()
-        }
-        audio.onerror = () => {
-          setIsExamplePlaying(false)
-          onFinish()
-        }
-        audio.play().catch((err) => {
-          console.log('Audio play error:', err)
-          setIsExamplePlaying(false)
-        })
+        playExamplePronunciation(activeExample, onFinish, onFinish)
       }
     } else {
       if (wordAudioRef.current && !wordAudioRef.current.paused) {
@@ -310,15 +341,7 @@ export default function WordComponent({
         playCurrentWordPronunciation()
       }
     }
-  }, [
-    attempt.isComplete,
-    activeExample,
-    onFinish,
-    pronunciationConfig.rate,
-    pronunciationConfig.type,
-    pronunciationConfig.volume,
-    playCurrentWordPronunciation,
-  ])
+  }, [attempt.isComplete, activeExample, onFinish, playExamplePronunciation, playCurrentWordPronunciation])
 
   useHotkeys(
     keyboardShortcuts.playPause || 'ctrl',
@@ -335,9 +358,8 @@ export default function WordComponent({
   const toggleExamplePlayback = useCallback(() => {
     if (!activeExample) return
 
-    const currentAudio = exampleAudioRef.current
-    if (currentAudio && !currentAudio.paused) {
-      currentAudio.pause()
+    if (exampleAudioRef.current && !exampleAudioRef.current.paused) {
+      exampleAudioRef.current.pause()
       setIsExamplePlaying(false)
       return
     }
@@ -345,35 +367,8 @@ export default function WordComponent({
     stopAutomaticWordPronunciation()
     stopSelectedPronunciation()
 
-    const url = generateWordSoundSrc(activeExample.english, pronunciationConfig.type)
-    if (!url) return
-
-    const audio = currentAudio || new Audio(url)
-    exampleAudioRef.current = audio
-    audio.volume = pronunciationConfig.volume
-    audio.playbackRate = pronunciationConfig.rate
-
-    if (!currentAudio) {
-      audio.onplay = () => setIsExamplePlaying(true)
-      audio.onpause = () => setIsExamplePlaying(false)
-      audio.onended = () => setIsExamplePlaying(false)
-      audio.onerror = () => setIsExamplePlaying(false)
-    } else if (audio.ended) {
-      audio.currentTime = 0
-    }
-
-    void audio.play().catch((err) => {
-      console.log('Example audio play error:', err)
-      setIsExamplePlaying(false)
-    })
-  }, [
-    activeExample,
-    pronunciationConfig.rate,
-    pronunciationConfig.type,
-    pronunciationConfig.volume,
-    stopAutomaticWordPronunciation,
-    stopSelectedPronunciation,
-  ])
+    playExamplePronunciation(activeExample)
+  }, [activeExample, playExamplePronunciation, stopAutomaticWordPronunciation, stopSelectedPronunciation])
 
   useHotkeyAction('playExample', toggleExamplePlayback)
 
@@ -682,34 +677,10 @@ export default function WordComponent({
           if (exampleAudioRef.current) {
             exampleAudioRef.current.pause()
           }
-          const url = generateWordSoundSrc(example.english, pronunciationConfig.type)
-          const audio = new Audio(url)
-          exampleAudioRef.current = audio
-          audio.volume = pronunciationConfig.volume
-          audio.playbackRate = pronunciationConfig.rate
-
-          const cleanup = () => {
-            if (isEffectActive) setIsExamplePlaying(false)
+          const finishExamplePlayback = () => {
+            if (isEffectActive) completeWordFlow()
           }
-
-          audio.onplay = () => {
-            if (isEffectActive) setIsExamplePlaying(true)
-          }
-          audio.onpause = cleanup
-          audio.onended = () => {
-            cleanup()
-            completeWordFlow()
-          }
-          audio.onerror = () => {
-            cleanup()
-            completeWordFlow()
-          }
-
-          audio.play().catch((err) => {
-            console.log('Sentence Audio play error:', err)
-            cleanup()
-            completeWordFlow()
-          })
+          playExamplePronunciation(example, finishExamplePlayback, finishExamplePlayback)
         } else {
           completeWordFlow()
         }

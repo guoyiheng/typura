@@ -3,6 +3,7 @@ import MnemonicDetails from './components/MnemonicDetails'
 import Phonetic from './components/Phonetic'
 import Translation from './components/Translation'
 import WordComponent from './components/Word'
+import ExampleAudioAttribution from '@/components/ExampleAudioAttribution'
 import Tooltip from '@/components/Tooltip'
 import type { WordPronunciationIconRef } from '@/components/WordPronunciationIcon'
 import { WordPronunciationIcon } from '@/components/WordPronunciationIcon'
@@ -371,6 +372,7 @@ export default function WordPanel() {
                       <div>
                         <p className="text-base leading-7 font-medium text-[var(--body)]">{activeExample.english}</p>
                         <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{activeExample.chinese}</p>
+                        <ExampleAudioAttribution audio={activeExample.audio} />
                       </div>
                       <Tooltip content="朗读例句" className="ml-1.5 h-5 w-5 shrink-0 cursor-pointer">
                         <SoundIcon

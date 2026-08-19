@@ -2,13 +2,20 @@ const JSON_CACHE_CONTROL = 'public, max-age=3600, s-maxage=604800, stale-while-r
 const MISSING_EXAMPLE_CACHE_CONTROL = 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=3600'
 const MAX_WORD_LENGTH = 80
 const MAX_JSON_BYTES = 2 * 1024 * 1024
-const EXAMPLE_CACHE_VERSION = '11'
+const EXAMPLE_CACHE_VERSION = '12'
 const IMAGE_CACHE_VERSION = '1'
 const MISSING_EXAMPLE_CACHE_TTL = 24 * 60 * 60 * 1000
 
 type WordExample = {
   english: string
   chinese: string
+  audio?: {
+    url: string
+    source: 'Tatoeba'
+    author: string
+    license: string
+    attributionUrl: string
+  }
 }
 
 type WordPhonetic = {
@@ -70,6 +77,82 @@ function parseWordExample(payload: unknown): WordExample | null {
     const english = typeof pair.sentence === 'string' ? pair.sentence.trim() : ''
     const chinese = typeof pair['sentence-translation'] === 'string' ? pair['sentence-translation'].trim() : ''
     if (english) return { english, chinese }
+  }
+
+  return null
+}
+
+function getTatoebaAudio(value: unknown): WordExample['audio'] | null {
+  if (!isRecord(value) || typeof value.id !== 'number') return null
+
+  const author = typeof value.author === 'string' ? value.author.trim() : ''
+  const license = typeof value.license === 'string' ? value.license.trim() : ''
+  const attributionUrl = typeof value.attribution_url === 'string' ? value.attribution_url.trim() : ''
+  if (!author || !license || !/^https?:\/\//i.test(attributionUrl)) return null
+
+  return {
+    url: `https://api.tatoeba.org/v1/audios/${value.id}/file`,
+    source: 'Tatoeba',
+    author,
+    license,
+    attributionUrl,
+  }
+}
+
+function getAudioLicensePriority(value: unknown) {
+  if (!isRecord(value) || typeof value.license !== 'string') return Number.MAX_SAFE_INTEGER
+  if (value.license === 'CC0 1.0') return 0
+  if (value.license === 'CC BY 4.0') return 1
+  if (value.license === 'CC BY-NC 4.0') return 2
+  if (value.license === 'CC BY-NC-ND 3.0') return 3
+  return 4
+}
+
+async function fetchTatoebaExample(word: string): Promise<WordExample | null> {
+  const upstreamUrl = new URL('https://api.tatoeba.org/v1/sentences')
+  upstreamUrl.searchParams.set('lang', 'eng')
+  upstreamUrl.searchParams.set('q', word)
+  upstreamUrl.searchParams.set('word_count', '3-16')
+  upstreamUrl.searchParams.set('has_audio', 'yes')
+  upstreamUrl.searchParams.set('is_unapproved', 'no')
+  upstreamUrl.searchParams.set('trans:lang', 'cmn')
+  upstreamUrl.searchParams.set('trans:is_direct', 'yes')
+  upstreamUrl.searchParams.set('trans:is_unapproved', 'no')
+  upstreamUrl.searchParams.set('sort', 'words')
+  upstreamUrl.searchParams.set('limit', '20')
+  upstreamUrl.searchParams.set('include', 'audios')
+
+  try {
+    const response = await fetch(upstreamUrl, {
+      headers: { Accept: 'application/json', 'User-Agent': 'typura/1.0' },
+      signal: AbortSignal.timeout(3500),
+    })
+    if (!response.ok) return null
+
+    const payload: unknown = await response.json()
+    if (!isRecord(payload) || !Array.isArray(payload.data)) return null
+
+    const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const wordPattern = new RegExp(`(^|[^A-Za-z])${escapedWord}([^A-Za-z]|$)`, 'i')
+
+    for (const sentence of payload.data) {
+      if (!isRecord(sentence)) continue
+      const english = typeof sentence.text === 'string' ? sentence.text.trim() : ''
+      if (!english || !wordPattern.test(english)) continue
+
+      const translation = getArray(sentence.translations).find(
+        (item) => isRecord(item) && item.lang === 'cmn' && typeof item.text === 'string' && item.text.trim(),
+      )
+      if (!isRecord(translation) || typeof translation.text !== 'string') continue
+
+      const audios = getArray(sentence.audios).sort((left, right) => getAudioLicensePriority(left) - getAudioLicensePriority(right))
+      for (const rawAudio of audios) {
+        const audio = getTatoebaAudio(rawAudio)
+        if (audio) return { english, chinese: translation.text.trim(), audio }
+      }
+    }
+  } catch {
+    return null
   }
 
   return null
@@ -537,22 +620,19 @@ async function handleWordExample(request: Request, ctx: ExecutionContext) {
     if (status === 'hit' || (status === 'missing' && isFreshMissingExample(cachedResponse))) return cachedResponse
   }
 
-  let payload: unknown
-  try {
-    payload = await fetchWordPayload(word)
-  } catch (error) {
-    console.error('Word example upstream request failed', error)
-    return jsonResponse({ error: 'upstream_unavailable' }, { status: 502, headers: { 'Cache-Control': 'no-store' } })
-  }
+  const [wordPayloadResult, tatoebaExampleResult] = await Promise.allSettled([fetchWordPayload(word), fetchTatoebaExample(word)])
+  const payload = wordPayloadResult.status === 'fulfilled' ? wordPayloadResult.value : null
+  const tatoebaExample = tatoebaExampleResult.status === 'fulfilled' ? tatoebaExampleResult.value : null
 
-  if (!payload) {
+  if (!payload && !tatoebaExample) {
     return jsonResponse({ error: 'upstream_error' }, { status: 502, headers: { 'Cache-Control': 'no-store' } })
   }
 
-  const example = parseWordExample(payload)
-  const phonetic = parseWordPhonetic(payload)
-  const similarWords = await getSimilarWords(payload, word)
-  const mnemonic = parseWordMnemonic(payload, word, similarWords)
+  const wordPayload = payload ?? {}
+  const example = tatoebaExample ?? parseWordExample(wordPayload)
+  const phonetic = parseWordPhonetic(wordPayload)
+  const similarWords = await getSimilarWords(wordPayload, word)
+  const mnemonic = parseWordMnemonic(wordPayload, word, similarWords)
   const hasDetails = Boolean(
     example ||
     phonetic ||
