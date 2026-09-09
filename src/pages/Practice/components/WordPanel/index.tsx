@@ -264,8 +264,9 @@ export default function WordPanel() {
   const shouldShowTranslation = useMemo(() => {
     return isTranslationHovered || state.isTransVisible
   }, [isTranslationHovered, state.isTransVisible])
-  const shouldShowMnemonicDetails =
-    isMnemonicEnabled && languageCategory === 'en' && (!dictationSettings.isOpen || isWordComplete)
+  const shouldShowMeaningDetails =
+    languageCategory === 'en' && (!dictationSettings.isOpen || isWordComplete)
+  const shouldShowMnemonicDetails = isMnemonicEnabled && shouldShowMeaningDetails
 
   return (
     <div className="relative container flex h-full w-full flex-col items-center justify-center">
@@ -351,7 +352,7 @@ export default function WordPanel() {
                   onMouseLeave={() => setTranslationHover(false)}
                 />
               )}
-              {shouldShowMnemonicDetails && (
+              {shouldShowMeaningDetails && (
                 <div className="w-full" onMouseEnter={() => setTranslationHover(true)} onMouseLeave={() => setTranslationHover(false)}>
                   <MnemonicDetails
                     word={activeWord.name}
