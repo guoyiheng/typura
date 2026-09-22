@@ -18,10 +18,12 @@ import {
   loopWordConfigAtom,
   pronunciationConfigAtom,
   reviewModeInfoAtom,
+  wordStatsAtom,
   wordDictationConfigAtom,
 } from '@/store'
 import { emitHotkeyAction, useHotkeyAction } from '@/utils/hotkeyBus'
 import { isHotkeyRecorderEvent } from '@/utils/hotkeys'
+import { appendDictationResult, MASTERY_ANSWER_EXPOSED_EVENT } from '@/utils/mastery'
 import { getWordMnemonic, prefetchWordExamples } from '@/utils/wordExample'
 import type { WordExample, WordMnemonic } from '@/utils/wordExample'
 import { useAtomValue, useSetAtom } from 'jotai'
@@ -43,7 +45,60 @@ export default function WordPanel() {
   const isMnemonicEnabled = useAtomValue(isMnemonicEnabledAtom)
   const pronunciationConfig = useAtomValue(pronunciationConfigAtom)
   const dictationSettings = useAtomValue(wordDictationConfigAtom)
+  const setWordStats = useSetAtom(wordStatsAtom)
   const [isWordComplete, setIsWordComplete] = useState(false)
+  const masteryIneligibleWordsRef = useRef(new Set<string>())
+  const previousWordIndexRef = useRef(0)
+  const previousDictationModeRef = useRef(`${dictationSettings.isOpen}:${dictationSettings.type}`)
+  const previousFinishedRef = useRef(false)
+  const markMasteryIneligible = useCallback((wordName: string) => {
+    masteryIneligibleWordsRef.current.add(wordName)
+  }, [])
+
+  useEffect(() => {
+    const handleAnswerExposed = (event: Event) => {
+      const wordName = (event as CustomEvent<{ word?: string }>).detail?.word
+      if (!wordName || !dictationSettings.isOpen || masteryIneligibleWordsRef.current.has(wordName)) return
+      masteryIneligibleWordsRef.current.add(wordName)
+      if (wordName === activeWordName || dictationSettings.type !== 'hideAll') return
+      setWordStats((previousStats) => {
+        const existingStats = previousStats[wordName] || {
+          correctStreak: 0,
+          status: 'normal' as const,
+          learnCount: 0,
+          dictationCount: 0,
+          successCount: 0,
+          failCount: 0,
+        }
+        return {
+          ...previousStats,
+          [wordName]: {
+            ...existingStats,
+            recentDictationResults: appendDictationResult(existingStats.recentDictationResults, false),
+            correctStreak: 0,
+          },
+        }
+      })
+    }
+    window.addEventListener(MASTERY_ANSWER_EXPOSED_EVENT, handleAnswerExposed)
+    return () => window.removeEventListener(MASTERY_ANSWER_EXPOSED_EVENT, handleAnswerExposed)
+  }, [activeWordName, dictationSettings.isOpen, dictationSettings.type, setWordStats])
+
+  useEffect(() => {
+    if (previousFinishedRef.current && !state.isFinished) {
+      masteryIneligibleWordsRef.current.clear()
+    }
+    previousFinishedRef.current = state.isFinished
+    const previousIndex = previousWordIndexRef.current
+    const previousMode = previousDictationModeRef.current
+    const isIndependentDictation = dictationSettings.isOpen && dictationSettings.type === 'hideAll'
+    const modeChanged = previousMode !== `${dictationSettings.isOpen}:${dictationSettings.type}`
+    if (activeWordName && (!isIndependentDictation || (modeChanged && previousIndex === state.chapterData.index))) {
+      masteryIneligibleWordsRef.current.add(activeWordName)
+    }
+    previousWordIndexRef.current = state.chapterData.index
+    previousDictationModeRef.current = `${dictationSettings.isOpen}:${dictationSettings.type}`
+  }, [activeWordName, dictationSettings.isOpen, dictationSettings.type, state.chapterData.index, state.isFinished])
   const shouldReadBefore = dictationSettings.isOpen
     ? (dictationSettings.isReadBefore ?? true)
     : (dictationSettings.isLearnReadBefore ?? dictationSettings.isReadBefore ?? true)
@@ -218,6 +273,7 @@ export default function WordPanel() {
           showToast('已是当前章节第一个单词')
           return
         }
+        setRepetitionIndex(0)
         dispatch({ type: PracticeActionType.SKIP_2_WORD_INDEX, newIndex: previousWordIndex })
       }
 
@@ -226,6 +282,7 @@ export default function WordPanel() {
           showToast('已是当前章节最后一个单词')
           return
         }
+        setRepetitionIndex(0)
         dispatch({ type: PracticeActionType.SKIP_2_WORD_INDEX, newIndex: nextWordIndex })
       }
     },
@@ -264,8 +321,7 @@ export default function WordPanel() {
   const shouldShowTranslation = useMemo(() => {
     return isTranslationHovered || state.isTransVisible
   }, [isTranslationHovered, state.isTransVisible])
-  const shouldShowMeaningDetails =
-    languageCategory === 'en' && (!dictationSettings.isOpen || isWordComplete)
+  const shouldShowMeaningDetails = languageCategory === 'en' && (!dictationSettings.isOpen || isWordComplete)
   const shouldShowMnemonicDetails = isMnemonicEnabled && shouldShowMeaningDetails
 
   return (
@@ -294,6 +350,11 @@ export default function WordPanel() {
             <div className="relative mx-auto flex w-full max-w-xl flex-col items-center justify-center px-4 md:max-w-[760px]">
               <WordComponent
                 word={activeWord}
+                shouldRecordMastery={
+                  previousDictationModeRef.current === `${dictationSettings.isOpen}:${dictationSettings.type}` &&
+                  !masteryIneligibleWordsRef.current.has(activeWordName ?? '')
+                }
+                onMasteryRecorded={markMasteryIneligible}
                 onFinish={completeCurrentWord}
                 onExampleChange={setActiveExample}
                 onExampleVisibilityChange={setShowExample}
@@ -306,14 +367,14 @@ export default function WordPanel() {
               {languageCategory === 'en' ? (
                 <div className="mt-2 flex min-h-5 w-full items-center justify-center gap-2 empty:hidden">
                   {shouldShowPhonetic && (
-                      <button
-                        type="button"
-                        onClick={toggleDisplayedPronunciation}
-                        className="inline-flex h-5 w-5 shrink-0 items-center justify-center text-[var(--muted)] transition-colors hover:text-[var(--primary)] focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--canvas)] focus-visible:outline-none"
-                        aria-label={`临时查看${displayedPronunciationType === 'us' ? '英音' : '美音'}音标`}
-                      >
-                        <ArrowLeftRight className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
-                      </button>
+                    <button
+                      type="button"
+                      onClick={toggleDisplayedPronunciation}
+                      className="inline-flex h-5 w-5 shrink-0 items-center justify-center text-[var(--muted)] transition-colors hover:text-[var(--primary)] focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--canvas)] focus-visible:outline-none"
+                      aria-label={`临时查看${displayedPronunciationType === 'us' ? '英音' : '美音'}音标`}
+                    >
+                      <ArrowLeftRight className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
+                    </button>
                   )}
                   {shouldShowPhonetic && <Phonetic word={activeWord} type={displayedPronunciationType} />}
                   {shouldShowPronunciationButton && (

@@ -27,6 +27,7 @@ import { isCharacterMatch } from '@/utils'
 import { useSaveWordRecord } from '@/utils/db'
 import { useHotkeyAction } from '@/utils/hotkeyBus'
 import { formatShortcut, isHotkeyRecorderEvent } from '@/utils/hotkeys'
+import { appendDictationResult, getMasteryAssessment, MASTERY_ANSWER_EXPOSED_EVENT } from '@/utils/mastery'
 import { getWordExample } from '@/utils/wordExample'
 import type { WordExample } from '@/utils/wordExample'
 import { useAtomValue, useSetAtom } from 'jotai'
@@ -39,6 +40,8 @@ const COMPLETED_WORD_PREVIEW_DELAY_MS = 500
 
 type WordComponentProps = {
   word: Word
+  shouldRecordMastery?: boolean
+  onMasteryRecorded?: (wordName: string) => void
   onFinish: () => void
   onExampleChange: (example: WordExample | null) => void
   onExampleVisibilityChange: (visible: boolean) => void
@@ -74,6 +77,8 @@ function getPronunciationText(word: Word, currentLanguage: string) {
 
 export default function WordComponent({
   word,
+  shouldRecordMastery = true,
+  onMasteryRecorded,
   onFinish,
   onExampleChange,
   onExampleVisibilityChange,
@@ -112,9 +117,45 @@ export default function WordComponent({
   const lastAutoPlayedWordRef = useRef<string | null>(null)
   const previousDictationModeRef = useRef(dictationSettings.isOpen)
   const [revealedThroughIndex, setRevealedThroughIndex] = useState(-1)
+  const masteryRecordedRef = useRef(false)
+  const masteryAnswerExposedRef = useRef(false)
 
   const [isExamplePlaying, setIsExamplePlaying] = useState(false)
   const [isWordAudioPlaying, setIsWordAudioPlaying] = useState(false)
+
+  const canRecordMastery = shouldRecordMastery && dictationSettings.isOpen && dictationSettings.type === 'hideAll'
+
+  const recordMasteryResult = useCallback(
+    (success: boolean) => {
+      if (!canRecordMastery || masteryRecordedRef.current) return
+      masteryRecordedRef.current = true
+      onMasteryRecorded?.(word.name)
+      updateWordStats((previousStats) => {
+        const existingStats = previousStats[word.name] || {
+          correctStreak: 0,
+          status: 'normal' as const,
+          learnCount: 0,
+          dictationCount: 0,
+          successCount: 0,
+          failCount: 0,
+        }
+        const recentDictationResults = appendDictationResult(existingStats.recentDictationResults, success)
+        const assessment = getMasteryAssessment(recentDictationResults)
+        return {
+          ...previousStats,
+          [word.name]: {
+            ...existingStats,
+            recentDictationResults,
+            status: assessment.status,
+            correctStreak: success ? (existingStats.correctStreak ?? 0) + 1 : 0,
+          },
+        }
+      })
+    },
+    [canRecordMastery, onMasteryRecorded, updateWordStats, word.name],
+  )
+  const recordMasteryResultRef = useRef(recordMasteryResult)
+  recordMasteryResultRef.current = recordMasteryResult
 
   const stopAutomaticWordPronunciation = useCallback(() => {
     if (wordAudioRef.current && !wordAudioRef.current.paused) {
@@ -168,7 +209,11 @@ export default function WordComponent({
         void audio.play().catch(fail)
       }
 
-      startAudio(primaryUrl, example.audio ? 1 : pronunciationConfig.rate, Boolean(example.audio && fallbackUrl && primaryUrl !== fallbackUrl))
+      startAudio(
+        primaryUrl,
+        example.audio ? 1 : pronunciationConfig.rate,
+        Boolean(example.audio && fallbackUrl && primaryUrl !== fallbackUrl),
+      )
     },
     [pronunciationConfig.rate, pronunciationConfig.type, pronunciationConfig.volume],
   )
@@ -192,14 +237,7 @@ export default function WordComponent({
       console.log('Word Audio play error:', err)
       setIsWordAudioPlaying(false)
     })
-  }, [
-    currentLanguage,
-    pronunciationConfig.rate,
-    pronunciationConfig.type,
-    pronunciationConfig.volume,
-    stopSelectedPronunciation,
-    word,
-  ])
+  }, [currentLanguage, pronunciationConfig.rate, pronunciationConfig.type, pronunciationConfig.volume, stopSelectedPronunciation, word])
 
   useHotkeyAction('stopWordPronunciation', stopAutomaticWordPronunciation)
 
@@ -226,9 +264,22 @@ export default function WordComponent({
 
     const nextAttempt = createWordAttempt(word)
     completionHandledRef.current = false
+    masteryRecordedRef.current = false
+    masteryAnswerExposedRef.current = false
     updateAttempt(nextAttempt)
     setRevealedThroughIndex(-1)
   }, [word, updateAttempt])
+
+  useEffect(() => {
+    const handleAnswerExposed = (event: Event) => {
+      const detail = (event as CustomEvent<{ word?: string }>).detail
+      if (detail?.word !== word.name || !canRecordMastery || attempt.isComplete) return
+      masteryAnswerExposedRef.current = true
+      recordMasteryResultRef.current(false)
+    }
+    window.addEventListener(MASTERY_ANSWER_EXPOSED_EVENT, handleAnswerExposed)
+    return () => window.removeEventListener(MASTERY_ANSWER_EXPOSED_EVENT, handleAnswerExposed)
+  }, [attempt.isComplete, canRecordMastery, word.name])
 
   const applyInputAction = useCallback(
     (updateAction: WordUpdateAction) => {
@@ -259,6 +310,7 @@ export default function WordComponent({
             else playKeySound()
             dispatch({ type: PracticeActionType.REPORT_CORRECT_WORD })
           } else {
+            recordMasteryResultRef.current(false)
             const mistakeCount = attempt.mistakeCount + 1
             const mistakesByPosition = {
               ...attempt.mistakesByPosition,
@@ -316,12 +368,20 @@ export default function WordComponent({
       playBeepSound,
       playHintSound,
       playKeySound,
+      recordMasteryResultRef,
     ],
   )
 
-  const handleWordHoverChange = useCallback((checked: boolean) => {
-    setIsHoveringWord(checked)
-  }, [])
+  const handleWordHoverChange = useCallback(
+    (checked: boolean) => {
+      setIsHoveringWord(checked)
+      if (checked && isShowAnswerOnHover && canRecordMastery && attempt.typedText.length < attempt.targetText.length) {
+        masteryAnswerExposedRef.current = true
+        recordMasteryResultRef.current(false)
+      }
+    },
+    [attempt.targetText.length, attempt.typedText.length, canRecordMastery, isShowAnswerOnHover],
+  )
 
   useHotkeyAction('playPronunciation', playCurrentWordPronunciation)
 
@@ -383,12 +443,15 @@ export default function WordComponent({
 
     setRevealedThroughIndex((previousIndex) => {
       const currentLength = attempt.typedText.length
+      if (canRecordMastery && currentLength < attempt.targetText.length) {
+        recordMasteryResultRef.current(false)
+      }
       if (previousIndex < currentLength) {
         return currentLength
       }
       return previousIndex + 1
     })
-  }, [attempt.typedText.length])
+  }, [attempt.targetText.length, attempt.typedText.length, canRecordMastery])
 
   useHotkeys(
     keyboardShortcuts.hint || 'tab',
@@ -618,6 +681,13 @@ export default function WordComponent({
         letterMistake: attempt.mistakesByPosition,
       })
 
+      const shouldRecordCompletion = canRecordMastery && !masteryRecordedRef.current
+      const completionMasterySuccess = shouldRecordCompletion && attempt.mistakeCount === 0 && !masteryAnswerExposedRef.current
+      if (shouldRecordCompletion) {
+        masteryRecordedRef.current = true
+        onMasteryRecorded?.(word.name)
+      }
+
       updateWordStats((previousStats) => {
         const existingStats = previousStats[word.name] || {
           correctStreak: 0,
@@ -627,9 +697,6 @@ export default function WordComponent({
           successCount: 0,
           failCount: 0,
         }
-        let nextCorrectStreak = existingStats.correctStreak
-        let nextStatus = existingStats.status
-
         const previousLearnCount = existingStats.learnCount ?? 0
         const previousDictationCount = existingStats.dictationCount ?? 0
         const previousSuccessCount = existingStats.successCount ?? 0
@@ -640,31 +707,25 @@ export default function WordComponent({
         const nextSuccessCount = attempt.mistakeCount === 0 ? previousSuccessCount + 1 : previousSuccessCount
         const nextFailCount = attempt.mistakeCount > 0 ? previousFailCount + 1 : previousFailCount
 
-        const usedHint = revealedThroughIndex >= 0
-
-        if (usedHint || attempt.mistakeCount >= 5) {
-          nextStatus = 'forgotten'
-          nextCorrectStreak = 0
-        } else if (attempt.mistakeCount >= 3) {
-          nextStatus = 'blurry'
-          nextCorrectStreak = 0
-        } else if (attempt.mistakeCount === 0) {
-          nextStatus = 'familiar'
-          nextCorrectStreak = 1
-        } else {
-          nextStatus = 'normal'
-          nextCorrectStreak = 0
-        }
+        const recentDictationResults = shouldRecordCompletion
+          ? appendDictationResult(existingStats.recentDictationResults, completionMasterySuccess)
+          : existingStats.recentDictationResults
+        const masteryAssessment = shouldRecordCompletion ? getMasteryAssessment(recentDictationResults) : undefined
 
         return {
           ...previousStats,
           [word.name]: {
-            correctStreak: nextCorrectStreak,
-            status: nextStatus,
+            correctStreak: shouldRecordCompletion
+              ? completionMasterySuccess
+                ? (existingStats.correctStreak ?? 0) + 1
+                : 0
+              : existingStats.correctStreak,
+            status: masteryAssessment?.status ?? existingStats.status,
             learnCount: nextLearnCount,
             dictationCount: nextDictationCount,
             successCount: nextSuccessCount,
             failCount: nextFailCount,
+            recentDictationResults,
           },
         }
       })
@@ -750,6 +811,7 @@ export default function WordComponent({
       return () => {
         isEffectActive = false
         if (completionTimer !== undefined) window.clearTimeout(completionTimer)
+        if (!hasCompletedTransition) completionHandledRef.current = false
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

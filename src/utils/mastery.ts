@@ -9,6 +9,11 @@ export const MASTERY_WINDOW_SIZE = 20
 
 /** 少于此数量时只展示初步评估，不确定正式档位。 */
 export const MASTERY_MIN_SAMPLE_SIZE = 5
+export const MASTERY_ANSWER_EXPOSED_EVENT = 'typura-mastery-answer-exposed'
+
+export function emitMasteryAnswerExposed(word: string) {
+  window.dispatchEvent(new CustomEvent<{ word: string }>(MASTERY_ANSWER_EXPOSED_EVENT, { detail: { word } }))
+}
 
 /**
  * 词条统计中已有的状态值。保留这些值可以让旧的 localStorage 和备份数据

@@ -120,6 +120,8 @@ export interface WordStatItem {
   dictationCount: number // 默写次数 (默写模式拼写成功数)
   successCount: number // 成功次数 (wrongCount === 0 成功数)
   failCount: number // 失败次数 (wrongCount > 0 失败数)
+  /** 最近最多 20 次独立默写结果，true 表示无错且未查看答案。 */
+  recentDictationResults?: boolean[]
 }
 export const wordStatsAtom = atomWithStorage<Record<string, WordStatItem>>('wordStats', {})
 

@@ -3,9 +3,10 @@ import { WordPronunciationIcon } from '@/components/WordPronunciationIcon'
 import { PracticeActionType, PracticeContext } from '@/pages/Practice/store'
 import { currentDictInfoAtom, wordDictationConfigAtom, wordStatsAtom } from '@/store'
 import type { Word, WordDictationType } from '@/typings'
+import { emitMasteryAnswerExposed, getMasteryAssessment } from '@/utils/mastery'
 import { useAtomValue } from 'jotai'
 import type React from 'react'
-import { forwardRef, useCallback, useContext, useMemo, useRef } from 'react'
+import { forwardRef, useCallback, useContext, useEffect, useMemo, useRef } from 'react'
 
 interface WordCardProps {
   word: Word
@@ -40,7 +41,7 @@ const WordCard = forwardRef<HTMLDivElement, WordCardProps>(({ word, isActive, is
   const isDictationMode = wordDictationConfig?.isOpen ?? false
 
   const status = useMemo(() => {
-    return wordStats[word.name]?.status ?? 'normal'
+    return getMasteryAssessment(wordStats[word.name]?.recentDictationResults).status
   }, [wordStats, word.name])
 
   const statusColorClass = useMemo(() => {
@@ -82,6 +83,14 @@ const WordCard = forwardRef<HTMLDivElement, WordCardProps>(({ word, isActive, is
 
   // 已默写完的 (isLearned) 不再遮挡；未默写完的在开默写模式且非 hover 时触发单词隐藏逻辑
   const isDictationActive = !isHovered && !isLearned && isDictationMode
+
+  const handleCardHover = useCallback(() => {
+    if (isDictationMode && !isLearned) emitMasteryAnswerExposed(word.name)
+  }, [isDictationMode, isLearned, word.name])
+
+  useEffect(() => {
+    if (isHovered) handleCardHover()
+  }, [handleCardHover, isHovered])
 
   // 含义是否显示根据 「是否显示含义」 调整
   const isTransMasked = useMemo(() => {
@@ -129,6 +138,7 @@ const WordCard = forwardRef<HTMLDivElement, WordCardProps>(({ word, isActive, is
   return (
     <div
       ref={ref}
+      onMouseEnter={handleCardHover}
       className={`group relative flex h-[48px] shrink-0 items-center justify-between rounded-md border px-2.5 py-1.5 transition-colors duration-150 select-none ${statusBgClass}`}
     >
       <div
