@@ -29,7 +29,6 @@ export const WordStatusPanel: React.FC<WordStatusPanelProps> = ({ word }) => {
       failCount: item?.failCount ?? 0,
       status: mastery.status,
       statusLabel: mastery.label,
-      successRate: mastery.successRate === null ? '—' : `${Math.floor(mastery.successRate)}%`,
     }
   }, [wordStats, word])
 
@@ -60,10 +59,6 @@ export const WordStatusPanel: React.FC<WordStatusPanelProps> = ({ word }) => {
             <li>少于 5 次有效默写：初步评估，再练习一些会更准确</li>
           </ul>
         </div>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <span>近期成功率</span>
-        <span className="font-semibold text-[var(--body)] tabular-nums">{stats.successRate}</span>
       </div>
     </div>
   )
