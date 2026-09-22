@@ -19,11 +19,10 @@ import {
   pronunciationConfigAtom,
   reviewModeInfoAtom,
   wordDictationConfigAtom,
-  wordStatsAtom,
 } from '@/store'
 import { emitHotkeyAction, useHotkeyAction } from '@/utils/hotkeyBus'
 import { isHotkeyRecorderEvent } from '@/utils/hotkeys'
-import { MASTERY_ANSWER_EXPOSED_EVENT, appendDictationResult } from '@/utils/mastery'
+import { MASTERY_ANSWER_EXPOSED_EVENT } from '@/utils/mastery'
 import { getWordMnemonic, prefetchWordExamples } from '@/utils/wordExample'
 import type { WordExample, WordMnemonic } from '@/utils/wordExample'
 import { useAtomValue, useSetAtom } from 'jotai'
@@ -45,7 +44,6 @@ export default function WordPanel() {
   const isMnemonicEnabled = useAtomValue(isMnemonicEnabledAtom)
   const pronunciationConfig = useAtomValue(pronunciationConfigAtom)
   const dictationSettings = useAtomValue(wordDictationConfigAtom)
-  const setWordStats = useSetAtom(wordStatsAtom)
   const [isWordComplete, setIsWordComplete] = useState(false)
   const masteryIneligibleWordsRef = useRef(new Set<string>())
   const previousWordIndexRef = useRef(0)
@@ -60,29 +58,10 @@ export default function WordPanel() {
       const wordName = (event as CustomEvent<{ word?: string }>).detail?.word
       if (!wordName || !dictationSettings.isOpen || masteryIneligibleWordsRef.current.has(wordName)) return
       masteryIneligibleWordsRef.current.add(wordName)
-      if (wordName === activeWordName || dictationSettings.type !== 'hideAll') return
-      setWordStats((previousStats) => {
-        const existingStats = previousStats[wordName] || {
-          correctStreak: 0,
-          status: 'normal' as const,
-          learnCount: 0,
-          dictationCount: 0,
-          successCount: 0,
-          failCount: 0,
-        }
-        return {
-          ...previousStats,
-          [wordName]: {
-            ...existingStats,
-            recentDictationResults: appendDictationResult(existingStats.recentDictationResults, false),
-            correctStreak: 0,
-          },
-        }
-      })
     }
     window.addEventListener(MASTERY_ANSWER_EXPOSED_EVENT, handleAnswerExposed)
     return () => window.removeEventListener(MASTERY_ANSWER_EXPOSED_EVENT, handleAnswerExposed)
-  }, [activeWordName, dictationSettings.isOpen, dictationSettings.type, setWordStats])
+  }, [dictationSettings.isOpen])
 
   useEffect(() => {
     if (previousFinishedRef.current && !state.isFinished) {
