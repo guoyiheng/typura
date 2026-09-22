@@ -1,5 +1,4 @@
 import { WordPronunciationIcon } from '@/components/WordPronunciationIcon'
-import Tooltip from '@/components/Tooltip'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { pronunciationConfigAtom } from '@/store'
 import type { Word } from '@/typings'

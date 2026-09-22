@@ -2,6 +2,7 @@ import type { PracticeAction } from '../store'
 import { PracticeActionType as ActionType } from '../store'
 import type { PracticeSessionState } from '../store/type'
 import {
+  chapterLengthAtom,
   currentChapterAtom,
   currentDictIdAtom,
   currentDictInfoAtom,
@@ -20,13 +21,16 @@ export function useRestorePracticeProgress({
   words,
   dispatch,
   shouldShuffle,
+  restartCount,
 }: {
   words: WordWithIndex[]
   dispatch: (action: PracticeAction) => void
   shouldShuffle: boolean
+  restartCount: number
 }) {
   const currentDictId = useAtomValue(currentDictIdAtom)
   const currentDictionary = useAtomValue(currentDictInfoAtom)
+  const chapterLength = useAtomValue(chapterLengthAtom)
   const [currentChapter, setCurrentChapter] = useAtom(currentChapterAtom)
   const reviewModeInfo = useAtomValue(reviewModeInfoAtom)
   const { isReviewMode, reviewRecord } = reviewModeInfo
@@ -39,7 +43,7 @@ export function useRestorePracticeProgress({
   const activeProgressMap = isDictationMode ? dictationProgress : learnProgress
   const currentProgress = activeProgressMap[currentDictId]
 
-  const initializedRef = useRef<{ sessionKey: string; words: WordWithIndex[] } | undefined>(undefined)
+  const initializedRef = useRef<{ sessionKey: string; words: WordWithIndex[]; restartCount: number } | undefined>(undefined)
 
   useEffect(() => {
     if (words.length === 0) return
@@ -48,17 +52,22 @@ export function useRestorePracticeProgress({
       const recordKey = reviewRecord?.id ?? reviewRecord?.createTime ?? 'unsaved'
       const sessionKey = `${currentDictId}:review:${recordKey}`
       const initialized = initializedRef.current
-      if (initialized?.sessionKey === sessionKey && initialized.words === words) return
+      const hasRestarted = initialized !== undefined && initialized.restartCount !== restartCount
+      if (initialized?.sessionKey === sessionKey && initialized.words === words) {
+        initializedRef.current = { sessionKey, words, restartCount }
+        return
+      }
 
       dispatch({
         type: ActionType.SETUP_CHAPTER,
         payload: {
           words,
+          masteryScope: sessionKey,
           shouldShuffle: false,
-          initialIndex: clampIndex(reviewRecord?.index ?? 0, words.length),
+          initialIndex: hasRestarted ? 0 : clampIndex(reviewRecord?.index ?? 0, words.length),
         },
       })
-      initializedRef.current = { sessionKey, words }
+      initializedRef.current = { sessionKey, words, restartCount }
       return
     }
 
@@ -73,20 +82,26 @@ export function useRestorePracticeProgress({
 
     const sessionKey = `${currentDictId}:${currentChapter}:${isDictationMode ? 'dictation' : 'learn'}`
     const initialized = initializedRef.current
-    if (initialized?.sessionKey === sessionKey && initialized.words === words) return
+    const hasRestarted = initialized !== undefined && initialized.restartCount !== restartCount
+    if (initialized?.sessionKey === sessionKey && initialized.words === words) {
+      initializedRef.current = { sessionKey, words, restartCount }
+      return
+    }
 
-    const initialIndex = currentChapter === savedChapter ? savedIndex : 0
+    const initialIndex = !hasRestarted && currentChapter === savedChapter ? savedIndex : 0
 
     dispatch({
       type: ActionType.SETUP_CHAPTER,
       payload: {
         words,
+        masteryScope: `${currentDictId}:chapter:${currentChapter}:size:${chapterLength}`,
         shouldShuffle,
         initialIndex: clampIndex(initialIndex, words.length),
       },
     })
-    initializedRef.current = { sessionKey, words }
+    initializedRef.current = { sessionKey, words, restartCount }
   }, [
+    chapterLength,
     currentChapter,
     currentDictionary.chapterCount,
     currentDictId,
@@ -94,6 +109,7 @@ export function useRestorePracticeProgress({
     dispatch,
     isDictationMode,
     isReviewMode,
+    restartCount,
     reviewRecord?.createTime,
     reviewRecord?.id,
     reviewRecord?.index,

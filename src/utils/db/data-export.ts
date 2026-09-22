@@ -80,6 +80,8 @@ export async function importDatabase(onStart: () => void, callback: (importProgr
 
       // 还原所有系统设置项与本地存储
       if (localStorageData && typeof localStorageData === 'object') {
+        // 旧备份没有轮次状态，不能沿用导入前的排除/完成标记。
+        if (!Object.hasOwn(localStorageData, 'masteryRounds')) localStorage.removeItem('masteryRounds')
         Object.entries(localStorageData).forEach(([k, v]) => {
           if (typeof v === 'string') {
             localStorage.setItem(k, v)

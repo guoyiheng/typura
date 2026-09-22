@@ -10,10 +10,16 @@ import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 export default function WordList() {
   const { state } = useContext(PracticeContext)!
 
-  const [isHovered, setIsHovered] = useState(false)
+  const [isPanelHovered, setIsPanelHovered] = useState(false)
+  const [intersectionRoot, setIntersectionRoot] = useState<HTMLDivElement | null>(null)
   const isReviewMode = useAtomValue(isReviewModeAtom)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const activeCardRef = useRef<HTMLDivElement>(null)
+
+  const setScrollContainerRef = useCallback((node: HTMLDivElement | null) => {
+    scrollContainerRef.current = node
+    setIntersectionRoot(node)
+  }, [])
 
   const words = state.chapterData.words || []
   const currentIndex = state.chapterData.index ?? 0
@@ -31,8 +37,8 @@ export default function WordList() {
 
   // 当前词变化时，保持它位于列表中部附近。
   useEffect(() => {
-    scrollToCurrentWord(isHovered ? 'smooth' : 'auto')
-  }, [isHovered, scrollToCurrentWord])
+    scrollToCurrentWord(isPanelHovered ? 'smooth' : 'auto')
+  }, [isPanelHovered, scrollToCurrentWord])
 
   return (
     <Popover className="relative z-30 inline-flex shrink-0 items-center">
@@ -64,8 +70,8 @@ export default function WordList() {
             <PopoverPanel
               anchor={{ to: 'bottom end', gap: 8, padding: 16 }}
               className="surface z-[210] flex h-[32rem] w-[min(24rem,calc(100vw-2rem))] flex-col p-2.5"
-              onMouseEnter={() => setIsHovered(true)}
-              onMouseLeave={() => setIsHovered(false)}
+              onMouseEnter={() => setIsPanelHovered(true)}
+              onMouseLeave={() => setIsPanelHovered(false)}
               aria-label={isReviewMode ? '错题单词列表' : '本章单词列表'}
             >
               <div className="mb-2 flex min-h-8 shrink-0 items-center justify-between gap-2 border-b border-[var(--line)] px-1 pb-2 select-none">
@@ -75,11 +81,9 @@ export default function WordList() {
                 </span>
               </div>
 
-              <div ref={scrollContainerRef} className="customized-scrollbar min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
+              <div ref={setScrollContainerRef} className="customized-scrollbar min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
                 {words.map((word, index) => {
                   const isCurrent = currentIndex === index
-                  const isLearned = index < currentIndex
-                  const isUnlearned = index > currentIndex
 
                   return (
                     <WordCard
@@ -87,10 +91,7 @@ export default function WordList() {
                       word={word}
                       index={index}
                       isActive={isCurrent}
-                      isCurrent={isCurrent}
-                      isLearned={isLearned}
-                      isUnlearned={isUnlearned}
-                      isHovered={isHovered}
+                      intersectionRoot={intersectionRoot}
                       ref={isCurrent ? activeCardRef : undefined}
                     />
                   )

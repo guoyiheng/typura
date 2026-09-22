@@ -16,6 +16,7 @@ import {
   keySoundsConfigAtom,
   learnProgressAtom,
   loopWordConfigAtom,
+  masteryRoundsAtom,
   pronunciationConfigAtom,
   randomConfigAtom,
   restartOnWrongAtom,
@@ -124,17 +125,7 @@ function SoundSlider({
   )
 }
 
-function SectionContainer({
-  children,
-  description,
-  id,
-  title,
-}: {
-  children: ReactNode
-  description: string
-  id: string
-  title: string
-}) {
+function SectionContainer({ children, description, id, title }: { children: ReactNode; description: string; id: string; title: string }) {
   return (
     <section id={id} className={`${styles.section} scroll-mt-4`}>
       <header>
@@ -212,9 +203,10 @@ export default function Setting({ open, onOpenChange }: { open: boolean; onOpenC
 
   const currentDictionaryId = useAtomValue(currentDictIdAtom)
   const currentDictionary = useAtomValue(currentDictInfoAtom)
-  const setCurrentChapter = useSetAtom(currentChapterAtom)
+  const [currentChapter, setCurrentChapter] = useAtom(currentChapterAtom)
   const setLearnProgress = useSetAtom(learnProgressAtom)
   const setDictationProgress = useSetAtom(dictationProgressAtom)
+  const setMasteryRounds = useSetAtom(masteryRoundsAtom)
   const hasPresetChapters = hasDictionaryPresetChapters(currentDictionary)
   const hasDefaultChapterLength =
     typeof currentDictionary.defaultChapterLength === 'number' &&
@@ -223,10 +215,7 @@ export default function Setting({ open, onOpenChange }: { open: boolean; onOpenC
   const hasNativeChapters = hasPresetChapters || hasDefaultChapterLength
   const activeChapterLength = getDictionaryChapterLength(currentDictionary, chapterLengthConfig.length)
 
-  const pronunciationOptions = useMemo(
-    () => LANG_PRON_MAP[currentDictionary.language]?.pronunciation ?? [],
-    [currentDictionary.language],
-  )
+  const pronunciationOptions = useMemo(() => LANG_PRON_MAP[currentDictionary.language]?.pronunciation ?? [], [currentDictionary.language])
   const selectedAccentLabel = useMemo(
     () => pronunciationOptions.find((option) => option.pron === pronunciation.type)?.name ?? '默认',
     [pronunciation.type, pronunciationOptions],
@@ -351,16 +340,34 @@ export default function Setting({ open, onOpenChange }: { open: boolean; onOpenC
     [setFeedbackSounds],
   )
 
+  const restartAtFirstChapter = useCallback(() => {
+    if (currentChapter === 0) {
+      practiceDispatch?.({
+        type: PracticeActionType.REPEAT_CHAPTER,
+        shouldShuffle: currentDictionary.contentType !== 'book' && randomConfig.isOpen,
+      })
+    } else {
+      setCurrentChapter(0)
+      practiceDispatch?.({ type: PracticeActionType.NEXT_CHAPTER })
+    }
+    practiceDispatch?.({ type: PracticeActionType.SET_IS_TYPING, payload: false })
+  }, [currentChapter, currentDictionary.contentType, practiceDispatch, randomConfig.isOpen, setCurrentChapter])
+
   const resetLearnProgress = useCallback(() => {
     setLearnProgress((current) => {
       const nextProgress = { ...current }
       delete nextProgress[currentDictionaryId]
       return nextProgress
     })
-    setCurrentChapter(0)
+    setMasteryRounds((current) => {
+      const next = { ...current }
+      for (const key of Object.keys(next)) if (key.startsWith(`${currentDictionaryId}:`)) delete next[key]
+      return next
+    })
+    restartAtFirstChapter()
     setLearnResetComplete(true)
     setTimeout(() => setLearnResetComplete(false), 2000)
-  }, [currentDictionaryId, setCurrentChapter, setLearnProgress])
+  }, [currentDictionaryId, restartAtFirstChapter, setLearnProgress, setMasteryRounds])
 
   const resetDictationProgress = useCallback(() => {
     setDictationProgress((current) => {
@@ -368,10 +375,15 @@ export default function Setting({ open, onOpenChange }: { open: boolean; onOpenC
       delete nextProgress[currentDictionaryId]
       return nextProgress
     })
-    setCurrentChapter(0)
+    setMasteryRounds((current) => {
+      const next = { ...current }
+      for (const key of Object.keys(next)) if (key.startsWith(`${currentDictionaryId}:`)) delete next[key]
+      return next
+    })
+    restartAtFirstChapter()
     setDictationResetComplete(true)
     setTimeout(() => setDictationResetComplete(false), 2000)
-  }, [currentDictionaryId, setCurrentChapter, setDictationProgress])
+  }, [currentDictionaryId, restartAtFirstChapter, setDictationProgress, setMasteryRounds])
 
   const updateExportProgress = useCallback(({ totalRows, completedRows, done }: ExportProgress) => {
     if (done) {
@@ -418,7 +430,10 @@ export default function Setting({ open, onOpenChange }: { open: boolean; onOpenC
 
         <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
           {/* SIDEBAR ANCHOR NAV */}
-          <nav aria-label="设置目录导航" className="settings-sidebar customized-scrollbar flex h-auto w-full shrink-0 flex-row overflow-x-auto border-b p-1.5 sm:w-56 sm:flex-col sm:justify-start sm:overflow-y-auto sm:border-r sm:border-b-0 sm:p-2">
+          <nav
+            aria-label="设置目录导航"
+            className="settings-sidebar customized-scrollbar flex h-auto w-full shrink-0 flex-row overflow-x-auto border-b p-1.5 sm:w-56 sm:flex-col sm:justify-start sm:overflow-y-auto sm:border-r sm:border-b-0 sm:p-2"
+          >
             {navItems.map(({ id, label, icon: Icon }) => {
               const isActive = activeNavId === id
               return (
@@ -440,11 +455,7 @@ export default function Setting({ open, onOpenChange }: { open: boolean; onOpenC
           </nav>
 
           {/* INTEGRATED SINGLE-PAGE SCROLL CONTENT WITH REALTIME ON-SCROLL SYNC */}
-          <div
-            ref={scrollContainerRef}
-            onScroll={handleScroll}
-            className="customized-scrollbar flex-1 overflow-y-auto select-none"
-          >
+          <div ref={scrollContainerRef} onScroll={handleScroll} className="customized-scrollbar flex-1 overflow-y-auto select-none">
             <div className={styles.tabContent}>
               {/* 1. 练习流程 */}
               <SectionContainer id="sec-flow" title="练习流程" description="控制章节划分、顺序与练习时显示的上下文。">
@@ -485,7 +496,7 @@ export default function Setting({ open, onOpenChange }: { open: boolean; onOpenC
                         >
                           {[20, 50, 100, 200].map((value) => (
                             <RadioGroup.Item
-                              className="flex min-h-10 items-center justify-center whitespace-nowrap rounded-md border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-sm font-medium text-[var(--body)] transition-colors outline-none hover:bg-[var(--surface-soft)] data-[state=checked]:border-[var(--primary)] data-[state=checked]:bg-[var(--primary-soft)] data-[state=checked]:text-[var(--primary)]"
+                              className="flex min-h-10 items-center justify-center rounded-md border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-sm font-medium whitespace-nowrap text-[var(--body)] transition-colors outline-none hover:bg-[var(--surface-soft)] data-[state=checked]:border-[var(--primary)] data-[state=checked]:bg-[var(--primary-soft)] data-[state=checked]:text-[var(--primary)]"
                               value={value.toString()}
                               key={value}
                             >

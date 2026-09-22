@@ -26,6 +26,7 @@ import {
   hotkeysConfigAtom,
   isReviewModeAtom,
   isZenModeAtom,
+  masteryRoundsAtom,
   randomConfigAtom,
   wordDictationConfigAtom,
 } from '@/store'
@@ -35,10 +36,12 @@ import {
   getMillisecondsUntilNextPracticeDay,
   normalizeDailyPracticeStats,
 } from '@/store/dailyPracticeStats'
+import { recordMasteryEventAtom } from '@/store/mastery'
 import { CTRL, IsDesktop, isLegal } from '@/utils'
 import { useSaveChapterRecord } from '@/utils/db'
 import { useHotkeyAction } from '@/utils/hotkeyBus'
 import { eventMatchesShortcut, isHotkeyRecorderEvent } from '@/utils/hotkeys'
+import { MASTERY_ANSWER_EXPOSED_EVENT } from '@/utils/mastery'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Languages, Minimize2 } from 'lucide-react'
 import type React from 'react'
@@ -60,11 +63,23 @@ const PracticePage: React.FC = () => {
   const randomConfig = useAtomValue(randomConfigAtom)
   const setDailyPracticeStats = useSetAtom(dailyPracticeStatsAtom)
   const setWordDictationConfig = useSetAtom(wordDictationConfigAtom)
+  const wordDictationConfig = useAtomValue(wordDictationConfigAtom)
+  const setMasteryRounds = useSetAtom(masteryRoundsAtom)
+  const recordMasteryEvent = useSetAtom(recordMasteryEventAtom)
   const saveChapterRecord = useSaveChapterRecord()
   const isBookMode = currentResource.contentType === 'book'
 
   const dispatch = useCallback(
     (action: PracticeAction) => {
+      if (action.type === PracticeActionType.REPEAT_CHAPTER && state.masteryScope) {
+        const roundKey = state.masteryScope
+        setMasteryRounds((previous) => {
+          if (!(roundKey in previous)) return previous
+          const next = { ...previous }
+          delete next[roundKey]
+          return next
+        })
+      }
       practiceDispatch(action)
 
       switch (action.type) {
@@ -98,8 +113,30 @@ const PracticePage: React.FC = () => {
           break
       }
     },
-    [practiceDispatch, setDailyPracticeStats],
+    [practiceDispatch, setDailyPracticeStats, setMasteryRounds, state.masteryScope],
   )
+
+  useEffect(() => {
+    const handleAnswerExposed = (event: Event) => {
+      const word = (event as CustomEvent<{ word?: string }>).detail?.word
+      if (!word || state.isFinished || !state.chapterData.words.some((item) => item.name === word)) return
+      recordMasteryEvent({
+        scope: state.masteryScope,
+        word,
+        event: 'expose',
+        independent: wordDictationConfig.isOpen && wordDictationConfig.type === 'hideAll',
+      })
+    }
+    window.addEventListener(MASTERY_ANSWER_EXPOSED_EVENT, handleAnswerExposed)
+    return () => window.removeEventListener(MASTERY_ANSWER_EXPOSED_EVENT, handleAnswerExposed)
+  }, [
+    recordMasteryEvent,
+    state.chapterData.words,
+    state.isFinished,
+    state.masteryScope,
+    wordDictationConfig.isOpen,
+    wordDictationConfig.type,
+  ])
 
   useEffect(() => {
     let resetTimer: number
@@ -196,7 +233,7 @@ const PracticePage: React.FC = () => {
     }
   }, [state.isTyping, isLoading, dispatch])
 
-  useRestorePracticeProgress({ words, dispatch, shouldShuffle: !isBookMode && randomConfig.isOpen })
+  useRestorePracticeProgress({ words, dispatch, shouldShuffle: !isBookMode && randomConfig.isOpen, restartCount: state.restartCount })
   usePersistPracticeProgress(state, words)
 
   useEffect(() => {
@@ -272,7 +309,7 @@ const PracticePage: React.FC = () => {
             >
               <section className={`practice-stage w-full ${isBookMode ? 'practice-stage--book' : ''}`} aria-label="当前练习">
                 <div className="practice-stage__body">
-                  {isLoading ? <LoadingUI /> : !state.isFinished && (isBookMode ? <BookPanel /> : <WordPanel />)}
+                  {isLoading ? <LoadingUI /> : !state.isFinished && (isBookMode ? <BookPanel /> : <WordPanel key={state.restartCount} />)}
                 </div>
               </section>
               {!isBookMode && !isZenMode && !state.isFinished && (

@@ -8,6 +8,7 @@ import { getDictionaryChapter, getDictionaryChapterCount } from '@/utils'
 import type { ReviewRecord } from '@/utils/db/record'
 import { defaultHotkeysConfig } from '@/utils/hotkeys'
 import type { HotkeysConfig } from '@/utils/hotkeys'
+import type { MasteryRound } from '@/utils/masteryRound'
 import { atom } from 'jotai'
 import { atomWithStorage } from 'jotai/utils'
 
@@ -123,7 +124,10 @@ export interface WordStatItem {
   /** 最近最多 20 次独立默写结果，true 表示无错且未查看答案。 */
   recentDictationResults?: boolean[]
 }
-export const wordStatsAtom = atomWithStorage<Record<string, WordStatItem>>('wordStats', {})
+export const wordStatsAtom = atomWithStorage<Record<string, WordStatItem>>('wordStats', {}, undefined, { getOnInit: true })
+
+/** 当前字典章节的默写轮次状态，用于刷新后避免重复计入同一结果。 */
+export const masteryRoundsAtom = atomWithStorage<Record<string, MasteryRound>>('masteryRounds', {}, undefined, { getOnInit: true })
 
 type DictProgressItem = {
   chapter: number

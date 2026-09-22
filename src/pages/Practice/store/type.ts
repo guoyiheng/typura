@@ -33,6 +33,8 @@ type TimerData = {
 }
 
 export type PracticeSessionState = {
+  masteryScope: string
+  restartCount: number
   chapterData: ChapterData
   timerData: TimerData
   isTyping: boolean

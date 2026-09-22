@@ -22,7 +22,6 @@ import {
 } from '@/store'
 import { emitHotkeyAction, useHotkeyAction } from '@/utils/hotkeyBus'
 import { isHotkeyRecorderEvent } from '@/utils/hotkeys'
-import { MASTERY_ANSWER_EXPOSED_EVENT } from '@/utils/mastery'
 import { getWordMnemonic, prefetchWordExamples } from '@/utils/wordExample'
 import type { WordExample, WordMnemonic } from '@/utils/wordExample'
 import { useAtomValue, useSetAtom } from 'jotai'
@@ -45,39 +44,6 @@ export default function WordPanel() {
   const pronunciationConfig = useAtomValue(pronunciationConfigAtom)
   const dictationSettings = useAtomValue(wordDictationConfigAtom)
   const [isWordComplete, setIsWordComplete] = useState(false)
-  const masteryIneligibleWordsRef = useRef(new Set<string>())
-  const previousWordIndexRef = useRef(0)
-  const previousDictationModeRef = useRef(`${dictationSettings.isOpen}:${dictationSettings.type}`)
-  const previousFinishedRef = useRef(false)
-  const markMasteryIneligible = useCallback((wordName: string) => {
-    masteryIneligibleWordsRef.current.add(wordName)
-  }, [])
-
-  useEffect(() => {
-    const handleAnswerExposed = (event: Event) => {
-      const wordName = (event as CustomEvent<{ word?: string }>).detail?.word
-      if (!wordName || !dictationSettings.isOpen || masteryIneligibleWordsRef.current.has(wordName)) return
-      masteryIneligibleWordsRef.current.add(wordName)
-    }
-    window.addEventListener(MASTERY_ANSWER_EXPOSED_EVENT, handleAnswerExposed)
-    return () => window.removeEventListener(MASTERY_ANSWER_EXPOSED_EVENT, handleAnswerExposed)
-  }, [dictationSettings.isOpen])
-
-  useEffect(() => {
-    if (previousFinishedRef.current && !state.isFinished) {
-      masteryIneligibleWordsRef.current.clear()
-    }
-    previousFinishedRef.current = state.isFinished
-    const previousIndex = previousWordIndexRef.current
-    const previousMode = previousDictationModeRef.current
-    const isIndependentDictation = dictationSettings.isOpen && dictationSettings.type === 'hideAll'
-    const modeChanged = previousMode !== `${dictationSettings.isOpen}:${dictationSettings.type}`
-    if (activeWordName && (!isIndependentDictation || (modeChanged && previousIndex === state.chapterData.index))) {
-      masteryIneligibleWordsRef.current.add(activeWordName)
-    }
-    previousWordIndexRef.current = state.chapterData.index
-    previousDictationModeRef.current = `${dictationSettings.isOpen}:${dictationSettings.type}`
-  }, [activeWordName, dictationSettings.isOpen, dictationSettings.type, state.chapterData.index, state.isFinished])
   const shouldReadBefore = dictationSettings.isOpen
     ? (dictationSettings.isReadBefore ?? true)
     : (dictationSettings.isLearnReadBefore ?? dictationSettings.isReadBefore ?? true)
@@ -329,11 +295,6 @@ export default function WordPanel() {
             <div className="relative mx-auto flex w-full max-w-xl flex-col items-center justify-center px-4 md:max-w-[760px]">
               <WordComponent
                 word={activeWord}
-                shouldRecordMastery={
-                  previousDictationModeRef.current === `${dictationSettings.isOpen}:${dictationSettings.type}` &&
-                  !masteryIneligibleWordsRef.current.has(activeWordName ?? '')
-                }
-                onMasteryRecorded={markMasteryIneligible}
                 onFinish={completeCurrentWord}
                 onExampleChange={setActiveExample}
                 onExampleVisibilityChange={setShowExample}
@@ -341,7 +302,7 @@ export default function WordPanel() {
                 onExamplePlayingChange={setIsExamplePlaying}
                 onWordPlayingChange={setIsWordPlaying}
                 stopSelectedPronunciation={stopSelectedPronunciation}
-                key={`${state.chapterData.index}-${wordRenderKey}`}
+                key={`${state.masteryScope}-${state.restartCount}-${state.chapterData.index}-${wordRenderKey}`}
               />
               {languageCategory === 'en' ? (
                 <div className="mt-2 flex min-h-5 w-full items-center justify-center gap-2 empty:hidden">

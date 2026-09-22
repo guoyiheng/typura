@@ -22,12 +22,13 @@ import {
   wordDictationConfigAtom,
   wordStatsAtom,
 } from '@/store'
+import { recordMasteryEventAtom } from '@/store/mastery'
 import type { Word } from '@/typings'
 import { isCharacterMatch } from '@/utils'
 import { useSaveWordRecord } from '@/utils/db'
 import { useHotkeyAction } from '@/utils/hotkeyBus'
 import { formatShortcut, isHotkeyRecorderEvent } from '@/utils/hotkeys'
-import { MASTERY_ANSWER_EXPOSED_EVENT, appendDictationResult, getMasteryAssessment } from '@/utils/mastery'
+import type { MasteryEvent } from '@/utils/masteryRound'
 import { getWordExample } from '@/utils/wordExample'
 import type { WordExample } from '@/utils/wordExample'
 import { useAtomValue, useSetAtom } from 'jotai'
@@ -40,8 +41,6 @@ const COMPLETED_WORD_PREVIEW_DELAY_MS = 500
 
 type WordComponentProps = {
   word: Word
-  shouldRecordMastery?: boolean
-  onMasteryRecorded?: (wordName: string) => void
   onFinish: () => void
   onExampleChange: (example: WordExample | null) => void
   onExampleVisibilityChange: (visible: boolean) => void
@@ -77,8 +76,6 @@ function getPronunciationText(word: Word, currentLanguage: string) {
 
 export default function WordComponent({
   word,
-  shouldRecordMastery = true,
-  onMasteryRecorded,
   onFinish,
   onExampleChange,
   onExampleVisibilityChange,
@@ -108,6 +105,7 @@ export default function WordComponent({
 
   const restartAfterMistake = useAtomValue(restartOnWrongAtom)
   const updateWordStats = useSetAtom(wordStatsAtom)
+  const recordMasteryEvent = useSetAtom(recordMasteryEventAtom)
   const keyboardShortcuts = useAtomValue(hotkeysConfigAtom)
   const currentWordIndex = state.chapterData.index
   const [activeExample, setActiveExample] = useState<WordExample | null>(null)
@@ -117,45 +115,27 @@ export default function WordComponent({
   const lastAutoPlayedWordRef = useRef<string | null>(null)
   const previousDictationModeRef = useRef(dictationSettings.isOpen)
   const [revealedThroughIndex, setRevealedThroughIndex] = useState(-1)
-  const masteryRecordedRef = useRef(false)
   const masteryAnswerExposedRef = useRef(false)
 
   const [isExamplePlaying, setIsExamplePlaying] = useState(false)
   const [isWordAudioPlaying, setIsWordAudioPlaying] = useState(false)
 
-  const canRecordMastery = shouldRecordMastery && dictationSettings.isOpen && dictationSettings.type === 'hideAll'
-
-  const recordMasteryResult = useCallback(
-    (success: boolean) => {
-      if (!canRecordMastery || masteryRecordedRef.current) return
-      masteryRecordedRef.current = true
-      onMasteryRecorded?.(word.name)
-      updateWordStats((previousStats) => {
-        const existingStats = previousStats[word.name] || {
-          correctStreak: 0,
-          status: 'normal' as const,
-          learnCount: 0,
-          dictationCount: 0,
-          successCount: 0,
-          failCount: 0,
-        }
-        const recentDictationResults = appendDictationResult(existingStats.recentDictationResults, success)
-        const assessment = getMasteryAssessment(recentDictationResults)
-        return {
-          ...previousStats,
-          [word.name]: {
-            ...existingStats,
-            recentDictationResults,
-            status: assessment.status,
-            correctStreak: success ? (existingStats.correctStreak ?? 0) + 1 : 0,
-          },
-        }
+  const isIndependentDictation = dictationSettings.isOpen && dictationSettings.type === 'hideAll'
+  const recordMastery = useCallback(
+    (event: MasteryEvent) => {
+      recordMasteryEvent({
+        scope: state.masteryScope,
+        word: word.name,
+        event,
+        independent: isIndependentDictation,
       })
     },
-    [canRecordMastery, onMasteryRecorded, updateWordStats, word.name],
+    [isIndependentDictation, recordMasteryEvent, state.masteryScope, word.name],
   )
-  const recordMasteryResultRef = useRef(recordMasteryResult)
-  recordMasteryResultRef.current = recordMasteryResult
+
+  useLayoutEffect(() => {
+    recordMastery('begin')
+  }, [recordMastery])
 
   const stopAutomaticWordPronunciation = useCallback(() => {
     if (wordAudioRef.current && !wordAudioRef.current.paused) {
@@ -264,25 +244,14 @@ export default function WordComponent({
 
     const nextAttempt = createWordAttempt(word)
     completionHandledRef.current = false
-    masteryRecordedRef.current = false
     masteryAnswerExposedRef.current = false
     updateAttempt(nextAttempt)
     setRevealedThroughIndex(-1)
   }, [word, updateAttempt])
 
-  useEffect(() => {
-    const handleAnswerExposed = (event: Event) => {
-      const detail = (event as CustomEvent<{ word?: string }>).detail
-      if (detail?.word !== word.name || !canRecordMastery || attempt.isComplete) return
-      masteryAnswerExposedRef.current = true
-      recordMasteryResultRef.current(false)
-    }
-    window.addEventListener(MASTERY_ANSWER_EXPOSED_EVENT, handleAnswerExposed)
-    return () => window.removeEventListener(MASTERY_ANSWER_EXPOSED_EVENT, handleAnswerExposed)
-  }, [attempt.isComplete, canRecordMastery, word.name])
-
   const applyInputAction = useCallback(
     (updateAction: WordUpdateAction) => {
+      if (attempt.isComplete) return
       switch (updateAction.type) {
         case 'add': {
           const typedCharacter = updateAction.value === ' ' ? EXPLICIT_SPACE : updateAction.value
@@ -310,7 +279,7 @@ export default function WordComponent({
             else playKeySound()
             dispatch({ type: PracticeActionType.REPORT_CORRECT_WORD })
           } else {
-            recordMasteryResultRef.current(false)
+            recordMastery('fail')
             const mistakeCount = attempt.mistakeCount + 1
             const mistakesByPosition = {
               ...attempt.mistakesByPosition,
@@ -368,19 +337,19 @@ export default function WordComponent({
       playBeepSound,
       playHintSound,
       playKeySound,
-      recordMasteryResultRef,
+      recordMastery,
     ],
   )
 
   const handleWordHoverChange = useCallback(
     (checked: boolean) => {
       setIsHoveringWord(checked)
-      if (checked && isShowAnswerOnHover && canRecordMastery && attempt.typedText.length < attempt.targetText.length) {
+      if (checked && isShowAnswerOnHover && dictationSettings.isOpen && !attempt.isComplete) {
         masteryAnswerExposedRef.current = true
-        recordMasteryResultRef.current(false)
+        recordMastery('expose')
       }
     },
-    [attempt.targetText.length, attempt.typedText.length, canRecordMastery, isShowAnswerOnHover],
+    [attempt.isComplete, dictationSettings.isOpen, isShowAnswerOnHover, recordMastery],
   )
 
   useHotkeyAction('playPronunciation', playCurrentWordPronunciation)
@@ -435,23 +404,25 @@ export default function WordComponent({
   const lastHintRequestAtRef = useRef(0)
   // 拼写提示：每按一次，显示一次当前待输入的字符，重复按向下移动提示指针，200ms内防抖节流以防部分系统CapsLock键keydown和keyup双击触发
   const revealNextCharacter = useCallback(() => {
+    if (attempt.isComplete) return
     const requestedAt = Date.now()
     if (requestedAt - lastHintRequestAtRef.current < 200) {
       return
     }
     lastHintRequestAtRef.current = requestedAt
 
+    const currentLength = attempt.typedText.length
+    if (dictationSettings.isOpen && currentLength < attempt.targetText.length) {
+      masteryAnswerExposedRef.current = true
+      recordMastery('expose')
+    }
     setRevealedThroughIndex((previousIndex) => {
-      const currentLength = attempt.typedText.length
-      if (canRecordMastery && currentLength < attempt.targetText.length) {
-        recordMasteryResultRef.current(false)
-      }
       if (previousIndex < currentLength) {
         return currentLength
       }
       return previousIndex + 1
     })
-  }, [attempt.targetText.length, attempt.typedText.length, canRecordMastery])
+  }, [attempt.isComplete, attempt.targetText.length, attempt.typedText.length, dictationSettings.isOpen, recordMastery])
 
   useHotkeys(
     keyboardShortcuts.hint || 'tab',
@@ -681,12 +652,8 @@ export default function WordComponent({
         letterMistake: attempt.mistakesByPosition,
       })
 
-      const shouldRecordCompletion = canRecordMastery && !masteryRecordedRef.current
-      const completionMasterySuccess = shouldRecordCompletion && attempt.mistakeCount === 0 && !masteryAnswerExposedRef.current
-      if (shouldRecordCompletion) {
-        masteryRecordedRef.current = true
-        onMasteryRecorded?.(word.name)
-      }
+      const isSuccessfulAttempt = attempt.mistakeCount === 0 && !masteryAnswerExposedRef.current
+      recordMastery(isSuccessfulAttempt ? 'complete' : 'fail')
 
       updateWordStats((previousStats) => {
         const existingStats = previousStats[word.name] || {
@@ -704,28 +671,17 @@ export default function WordComponent({
 
         const nextLearnCount = dictationSettings.isOpen ? previousLearnCount : previousLearnCount + 1
         const nextDictationCount = dictationSettings.isOpen ? previousDictationCount + 1 : previousDictationCount
-        const nextSuccessCount = attempt.mistakeCount === 0 ? previousSuccessCount + 1 : previousSuccessCount
-        const nextFailCount = attempt.mistakeCount > 0 ? previousFailCount + 1 : previousFailCount
-
-        const recentDictationResults = shouldRecordCompletion
-          ? appendDictationResult(existingStats.recentDictationResults, completionMasterySuccess)
-          : existingStats.recentDictationResults
-        const masteryAssessment = shouldRecordCompletion ? getMasteryAssessment(recentDictationResults) : undefined
+        const nextSuccessCount = isSuccessfulAttempt ? previousSuccessCount + 1 : previousSuccessCount
+        const nextFailCount = isSuccessfulAttempt ? previousFailCount : previousFailCount + 1
 
         return {
           ...previousStats,
           [word.name]: {
-            correctStreak: shouldRecordCompletion
-              ? completionMasterySuccess
-                ? (existingStats.correctStreak ?? 0) + 1
-                : 0
-              : existingStats.correctStreak,
-            status: masteryAssessment?.status ?? existingStats.status,
+            ...existingStats,
             learnCount: nextLearnCount,
             dictationCount: nextDictationCount,
             successCount: nextSuccessCount,
             failCount: nextFailCount,
-            recentDictationResults,
           },
         }
       })
@@ -811,7 +767,6 @@ export default function WordComponent({
       return () => {
         isEffectActive = false
         if (completionTimer !== undefined) window.clearTimeout(completionTimer)
-        if (!hasCompletedTransition) completionHandledRef.current = false
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

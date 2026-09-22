@@ -7,6 +7,8 @@ import shuffle from '@/utils/shuffle'
 import { createContext } from 'react'
 
 export const initialPracticeState: PracticeSessionState = {
+  masteryScope: '',
+  restartCount: 0,
   chapterData: {
     words: [],
     index: 0,
@@ -57,7 +59,10 @@ export enum PracticeActionType {
 }
 
 export type PracticeAction =
-  | { type: PracticeActionType.SETUP_CHAPTER; payload: { words: WordWithIndex[]; shouldShuffle: boolean; initialIndex?: number } }
+  | {
+      type: PracticeActionType.SETUP_CHAPTER
+      payload: { words: WordWithIndex[]; shouldShuffle: boolean; initialIndex?: number; masteryScope: string }
+    }
   | { type: PracticeActionType.SET_IS_TYPING; payload: boolean }
   | { type: PracticeActionType.TOGGLE_IS_TYPING }
   | { type: PracticeActionType.REPORT_WRONG_WORD; payload: { letterMistake: LetterMistakes } }
@@ -82,6 +87,8 @@ export const practiceReducer = (state: PracticeSessionState, action: PracticeAct
   switch (action.type) {
     case PracticeActionType.SETUP_CHAPTER: {
       const newState = structuredClone(initialPracticeState)
+      newState.masteryScope = action.payload.masteryScope
+      newState.restartCount = state.restartCount
       const words = action.payload.shouldShuffle ? shuffle(action.payload.words) : action.payload.words
       let initialIndex = action.payload.initialIndex ?? 0
       if (initialIndex >= words.length) {
@@ -140,6 +147,8 @@ export const practiceReducer = (state: PracticeSessionState, action: PracticeAct
     }
     case PracticeActionType.REPEAT_CHAPTER: {
       const newState = structuredClone(initialPracticeState)
+      newState.masteryScope = state.masteryScope
+      newState.restartCount = state.restartCount + 1
       newState.chapterData.userInputLogs = state.chapterData.words.map((_, index) => ({ ...structuredClone(initialUserInputLog), index }))
       newState.isTyping = true
       newState.chapterData.words = action.shouldShuffle ? shuffle(state.chapterData.words) : state.chapterData.words
@@ -148,6 +157,9 @@ export const practiceReducer = (state: PracticeSessionState, action: PracticeAct
     }
     case PracticeActionType.NEXT_CHAPTER: {
       const newState = structuredClone(initialPracticeState)
+      newState.restartCount = state.restartCount
+      // 等待进度恢复钩子装载新章节期间，不允许旧章节的单词写入熟练度轮次。
+      newState.masteryScope = ''
       newState.chapterData.userInputLogs = state.chapterData.words.map((_, index) => ({ ...structuredClone(initialUserInputLog), index }))
       newState.isTyping = true
       newState.isTransVisible = state.isTransVisible

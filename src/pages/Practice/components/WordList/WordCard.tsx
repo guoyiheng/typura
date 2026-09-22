@@ -6,15 +6,12 @@ import type { Word, WordDictationType } from '@/typings'
 import { emitMasteryAnswerExposed, getMasteryAssessment } from '@/utils/mastery'
 import { useAtomValue } from 'jotai'
 import type React from 'react'
-import { forwardRef, useCallback, useContext, useEffect, useMemo, useRef } from 'react'
+import { forwardRef, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 
 interface WordCardProps {
   word: Word
   isActive: boolean
-  isLearned: boolean
-  isCurrent: boolean
-  isUnlearned: boolean
-  isHovered: boolean
+  intersectionRoot: HTMLDivElement | null
   index: number
 }
 
@@ -30,8 +27,12 @@ function isCharHidden(char: string, index: number, dictationType: WordDictationT
 
 const vowelLetters = ['A', 'E', 'I', 'O', 'U']
 
-const WordCard = forwardRef<HTMLDivElement, WordCardProps>(({ word, isActive, isLearned, isHovered, index }, ref) => {
+const WordCard = forwardRef<HTMLDivElement, WordCardProps>(({ word, isActive, intersectionRoot, index }, ref) => {
   const wordPronunciationIconRef = useRef<WordPronunciationIconRef>(null)
+  const cardRef = useRef<HTMLDivElement | null>(null)
+  const [isHovered, setIsHovered] = useState(false)
+  const [isFocused, setIsFocused] = useState(false)
+  const [isVisible, setIsVisible] = useState(false)
   const currentLanguage = useAtomValue(currentDictInfoAtom).language
   const wordStats = useAtomValue(wordStatsAtom)
   const wordDictationConfig = useAtomValue(wordDictationConfigAtom)
@@ -81,23 +82,48 @@ const WordCard = forwardRef<HTMLDivElement, WordCardProps>(({ word, isActive, is
   const wordText = (['romaji', 'hapin'].includes(currentLanguage) ? word.notation : word.name) || ''
   const transText = word.trans ? word.trans.join('；') : ''
 
-  // 已默写完的 (isLearned) 不再遮挡；未默写完的在开默写模式且非 hover 时触发单词隐藏逻辑
-  const isDictationActive = !isHovered && !isLearned && isDictationMode
+  const isAnswerRevealed = isHovered || isFocused
+  const isDictationActive = isDictationMode && !isAnswerRevealed
 
-  const handleCardHover = useCallback(() => {
-    if (isDictationMode && !isLearned) emitMasteryAnswerExposed(word.name)
-  }, [isDictationMode, isLearned, word.name])
+  const shouldExposeAnswer = !isDictationMode || wordDictationConfig?.type !== 'hideAll' || isAnswerRevealed
 
   useEffect(() => {
-    if (isHovered) handleCardHover()
-  }, [handleCardHover, isHovered])
+    if (!isVisible || !shouldExposeAnswer) return
+    emitMasteryAnswerExposed(word.name)
+  }, [isVisible, shouldExposeAnswer, word.name])
+
+  const setCardRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      cardRef.current = node
+      if (typeof ref === 'function') ref(node)
+      else if (ref) ref.current = node
+    },
+    [ref],
+  )
+
+  useEffect(() => {
+    const node = cardRef.current
+    if (!node || !intersectionRoot) return
+
+    const observer = new IntersectionObserver(([entry]) => setIsVisible(entry.isIntersecting && entry.intersectionRatio > 0), {
+      root: intersectionRoot,
+      threshold: 0.01,
+    })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [intersectionRoot])
+
+  const handleFocus = useCallback(() => setIsFocused(true), [])
+  const handleBlur = useCallback((event: React.FocusEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsFocused(false)
+  }, [])
 
   // 含义是否显示根据 「是否显示含义」 调整
   const isTransMasked = useMemo(() => {
-    if (isHovered) return false
+    if (isAnswerRevealed) return false
     if (!isTransVisible) return true
     return false
-  }, [isHovered, isTransVisible])
+  }, [isAnswerRevealed, isTransVisible])
 
   // 当前单词只需要淡淡的背景色，不要边框颜色
   const statusBgClass = useMemo(() => {
@@ -137,8 +163,11 @@ const WordCard = forwardRef<HTMLDivElement, WordCardProps>(({ word, isActive, is
 
   return (
     <div
-      ref={ref}
-      onMouseEnter={handleCardHover}
+      ref={setCardRef}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
       className={`group relative flex h-[48px] shrink-0 items-center justify-between rounded-md border px-2.5 py-1.5 transition-colors duration-150 select-none ${statusBgClass}`}
     >
       <div
@@ -148,7 +177,7 @@ const WordCard = forwardRef<HTMLDivElement, WordCardProps>(({ word, isActive, is
         role="button"
         tabIndex={0}
         aria-current={isActive ? 'true' : undefined}
-        aria-label={`跳转到第 ${index + 1} 个单词：${wordText}`}
+        aria-label={`跳转到第 ${index + 1} 个单词${isDictationActive ? '' : `：${wordText}`}`}
       >
         <span className="flex h-5 w-5 shrink-0 items-center justify-center text-xs font-semibold text-[var(--body)] tabular-nums">
           {index + 1}
