@@ -18,12 +18,12 @@ import {
   loopWordConfigAtom,
   pronunciationConfigAtom,
   reviewModeInfoAtom,
-  wordStatsAtom,
   wordDictationConfigAtom,
+  wordStatsAtom,
 } from '@/store'
 import { emitHotkeyAction, useHotkeyAction } from '@/utils/hotkeyBus'
 import { isHotkeyRecorderEvent } from '@/utils/hotkeys'
-import { appendDictationResult, MASTERY_ANSWER_EXPOSED_EVENT } from '@/utils/mastery'
+import { MASTERY_ANSWER_EXPOSED_EVENT, appendDictationResult } from '@/utils/mastery'
 import { getWordMnemonic, prefetchWordExamples } from '@/utils/wordExample'
 import type { WordExample, WordMnemonic } from '@/utils/wordExample'
 import { useAtomValue, useSetAtom } from 'jotai'
