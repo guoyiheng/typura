@@ -21,14 +21,14 @@ import {
   randomConfigAtom,
   restartOnWrongAtom,
 } from '@/store'
+import { syncPassphraseAtom } from '@/store/progressSync'
 import type { PronunciationType, SoundResource } from '@/typings'
 import { getDictionaryChapterLength, hasDictionaryPresetChapters, toFixedNumber } from '@/utils'
 import {
+  flushProgressUpload,
   getLocalProgressUpdatedAt,
-  getStoredSyncPassphrase,
   isValidSyncPassphrase,
   normalizePassphrase,
-  saveSyncPassphrase,
   syncProgress,
 } from '@/utils/db/progress-sync'
 import { playKeySoundResource } from '@/utils/sounds/keySounds'
@@ -183,7 +183,8 @@ export default function Setting({ open, onOpenChange }: { open: boolean; onOpenC
   const [feedbackSounds, setFeedbackSounds] = useAtom(hintSoundsConfigAtom)
 
   // Data Reset & Sync State
-  const [syncPassphrase, setSyncPassphrase] = useState(() => getStoredSyncPassphrase())
+  const [syncPassphrase, setSyncPassphrase] = useAtom(syncPassphraseAtom)
+  const [passphraseInput, setPassphraseInput] = useState(syncPassphrase)
   const [isSyncing, setIsSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState<{ tone: 'success' | 'error' | 'info'; text: string } | undefined>(undefined)
   const [syncConflict, setSyncConflict] = useState<{ remoteUpdatedAt: number } | undefined>(undefined)
@@ -354,6 +355,8 @@ export default function Setting({ open, onOpenChange }: { open: boolean; onOpenC
       return next
     })
     restartAtFirstChapter()
+    // 重置后立刻上传一次，避免下次进入页面时被云端旧进度覆盖。
+    void flushProgressUpload()
     setLearnResetComplete(true)
     setTimeout(() => setLearnResetComplete(false), 2000)
   }, [currentDictionaryId, restartAtFirstChapter, setLearnProgress, setMasteryRounds])
@@ -370,16 +373,18 @@ export default function Setting({ open, onOpenChange }: { open: boolean; onOpenC
       return next
     })
     restartAtFirstChapter()
+    void flushProgressUpload()
     setDictationResetComplete(true)
     setTimeout(() => setDictationResetComplete(false), 2000)
   }, [currentDictionaryId, restartAtFirstChapter, setDictationProgress, setMasteryRounds])
 
   const localProgressUpdatedAt = getLocalProgressUpdatedAt()
-  const canSync = isValidSyncPassphrase(syncPassphrase) && !isSyncing
+  const isSyncBound = isValidSyncPassphrase(syncPassphrase)
+  const canBind = isValidSyncPassphrase(passphraseInput) && !isSyncing
 
-  const runProgressSync = useCallback(
+  const bindSyncPassphrase = useCallback(
     async (resolution?: 'keep-local' | 'keep-remote') => {
-      const passphrase = normalizePassphrase(syncPassphrase)
+      const passphrase = normalizePassphrase(passphraseInput)
       if (!isValidSyncPassphrase(passphrase)) {
         setSyncMessage({ tone: 'error', text: '口令至少 6 位。' })
         return
@@ -390,14 +395,7 @@ export default function Setting({ open, onOpenChange }: { open: boolean; onOpenC
       setSyncMessage(undefined)
 
       try {
-        saveSyncPassphrase(passphrase)
         const result = await syncProgress(passphrase, resolution)
-
-        if (result.status === 'restored') {
-          setSyncMessage({ tone: 'success', text: '已恢复云端进度，正在刷新…' })
-          window.setTimeout(() => window.location.reload(), 600)
-          return
-        }
 
         if (result.status === 'conflict') {
           setSyncConflict({ remoteUpdatedAt: result.remoteUpdatedAt })
@@ -405,7 +403,15 @@ export default function Setting({ open, onOpenChange }: { open: boolean; onOpenC
           return
         }
 
-        setSyncMessage({ tone: 'success', text: '已上传本机进度。' })
+        setSyncPassphrase(passphrase)
+
+        if (result.status === 'restored') {
+          setSyncMessage({ tone: 'success', text: '已恢复云端进度，正在刷新…' })
+          window.setTimeout(() => window.location.reload(), 600)
+          return
+        }
+
+        setSyncMessage({ tone: 'success', text: '已绑定口令，之后进度变化会自动上传。' })
       } catch (error) {
         console.error(error)
         const message = error instanceof Error ? error.message : ''
@@ -416,14 +422,36 @@ export default function Setting({ open, onOpenChange }: { open: boolean; onOpenC
               ? '云端还没有这个口令的进度。'
               : message.startsWith('progress_upload_failed:413')
                 ? '进度数据过大，暂时无法上传。'
-                : '同步失败，请检查网络后重试。',
+                : '绑定失败，请检查网络后重试。',
         })
       } finally {
         setIsSyncing(false)
       }
     },
-    [syncPassphrase],
+    [passphraseInput, setSyncPassphrase],
   )
+
+  const unbindSyncPassphrase = useCallback(() => {
+    setSyncPassphrase('')
+    setPassphraseInput('')
+    setSyncConflict(undefined)
+    setSyncMessage({ tone: 'info', text: '已解除绑定，进度不再自动同步。' })
+  }, [setSyncPassphrase])
+
+  const uploadProgressNow = useCallback(async () => {
+    setIsSyncing(true)
+    setSyncMessage(undefined)
+
+    try {
+      await flushProgressUpload()
+      setSyncMessage({ tone: 'success', text: '已上传当前进度。' })
+    } catch (error) {
+      console.error(error)
+      setSyncMessage({ tone: 'error', text: '上传失败，请检查网络后重试。' })
+    } finally {
+      setIsSyncing(false)
+    }
+  }, [])
 
   return (
     <Dialog open={open} onOpenChange={updateOpenState}>
@@ -758,47 +786,83 @@ export default function Setting({ open, onOpenChange }: { open: boolean; onOpenC
               <SectionContainer
                 id="sec-backup"
                 title="备份与恢复"
-                description="用一个口令在浏览器之间同步练习记录、熟练度、章节进度与个性化设置。"
+                description="用一个口令在浏览器之间同步练习记录、熟练度、章节进度、设置、当前词典与生词本。"
               >
                 <div className="flex w-full flex-col gap-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                      <label className={styles.blockLabel} htmlFor="sync-passphrase">
-                        同步口令
-                      </label>
-                      <input
-                        id="sync-passphrase"
-                        type="text"
-                        value={syncPassphrase}
-                        onChange={(event) => {
-                          setSyncPassphrase(event.target.value)
-                          setSyncConflict(undefined)
-                          setSyncMessage(undefined)
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' && canSync) void runProgressSync()
-                        }}
-                        placeholder="输入至少 6 位的口令"
-                        autoComplete="off"
-                        spellCheck={false}
-                        className="h-10 w-full rounded-md border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-sm font-medium text-[var(--ink)] transition-colors outline-none focus:border-[var(--primary)] focus:bg-[var(--surface-raised)]"
-                      />
-                    </div>
-                    <button
-                      className="primary-button min-w-32 whitespace-nowrap"
-                      type="button"
-                      onClick={() => void runProgressSync()}
-                      disabled={!canSync}
-                    >
-                      <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                      {isSyncing ? '正在同步' : '同步进度'}
-                    </button>
-                  </div>
+                  {isSyncBound ? (
+                    <>
+                      <div className="flex flex-col gap-1.5 rounded-md border border-[var(--line)] bg-[var(--surface-soft)] px-4 py-3">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]">
+                          <Check className="h-4 w-4 text-[var(--success)]" aria-hidden="true" />
+                          已绑定口令 · 自动同步中
+                        </div>
+                        <p className="text-xs leading-5 text-[var(--muted)]">
+                          进度变化后会自动上传，进入页面或切回页面时自动获取最新进度。
+                          {localProgressUpdatedAt ? ` 本机最近更新：${new Date(localProgressUpdatedAt).toLocaleString('zh-CN')}。` : ''}
+                        </p>
+                      </div>
 
-                  <p className="text-xs leading-5 text-[var(--muted)]">
-                    在另一台设备输入同一口令并同步，即可继续同一份进度，云端与本机以较新的为准。口令只用于定位进度，请妥善保管。
-                    {localProgressUpdatedAt ? ` 本机上次更新：${new Date(localProgressUpdatedAt).toLocaleString('zh-CN')}。` : ''}
-                  </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          className="secondary-button min-h-9 px-3 text-xs"
+                          type="button"
+                          disabled={isSyncing}
+                          onClick={() => void uploadProgressNow()}
+                        >
+                          <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                          立即上传
+                        </button>
+                        <button
+                          className="secondary-button min-h-9 px-3 text-xs"
+                          type="button"
+                          disabled={isSyncing}
+                          onClick={unbindSyncPassphrase}
+                        >
+                          解除绑定
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                          <label className={styles.blockLabel} htmlFor="sync-passphrase">
+                            同步口令
+                          </label>
+                          <input
+                            id="sync-passphrase"
+                            type="text"
+                            value={passphraseInput}
+                            onChange={(event) => {
+                              setPassphraseInput(event.target.value)
+                              setSyncConflict(undefined)
+                              setSyncMessage(undefined)
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' && canBind) void bindSyncPassphrase()
+                            }}
+                            placeholder="输入至少 6 位的口令"
+                            autoComplete="off"
+                            spellCheck={false}
+                            className="h-10 w-full rounded-md border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-sm font-medium text-[var(--ink)] transition-colors outline-none focus:border-[var(--primary)] focus:bg-[var(--surface-raised)]"
+                          />
+                        </div>
+                        <button
+                          className="primary-button min-w-32 whitespace-nowrap"
+                          type="button"
+                          onClick={() => void bindSyncPassphrase()}
+                          disabled={!canBind}
+                        >
+                          <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                          {isSyncing ? '正在绑定' : '绑定口令'}
+                        </button>
+                      </div>
+
+                      <p className="text-xs leading-5 text-[var(--muted)]">
+                        绑定后进度会自动上传，在另一台设备绑定同一口令即可继续；云端与本机以较新的为准。口令只用于定位进度，请妥善保管。
+                      </p>
+                    </>
+                  )}
 
                   {syncMessage && (
                     <p
@@ -821,7 +885,7 @@ export default function Setting({ open, onOpenChange }: { open: boolean; onOpenC
                         className="secondary-button min-h-9 px-3 text-xs"
                         type="button"
                         disabled={isSyncing}
-                        onClick={() => void runProgressSync('keep-remote')}
+                        onClick={() => void bindSyncPassphrase('keep-remote')}
                       >
                         用云端进度覆盖本机
                       </button>
@@ -829,7 +893,7 @@ export default function Setting({ open, onOpenChange }: { open: boolean; onOpenC
                         className="secondary-button min-h-9 px-3 text-xs"
                         type="button"
                         disabled={isSyncing}
-                        onClick={() => void runProgressSync('keep-local')}
+                        onClick={() => void bindSyncPassphrase('keep-local')}
                       >
                         用本机进度覆盖云端
                       </button>

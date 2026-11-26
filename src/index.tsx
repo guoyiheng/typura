@@ -1,6 +1,8 @@
 import Loading from './components/Loading'
+import { useProgressAutoSync } from './hooks/useProgressAutoSync'
 import './index.css'
 import { isOpenDarkModeAtom } from '@/store'
+import { installProgressChangeTracking } from '@/utils/progressChangeTracker'
 import 'animate.css'
 import { useAtomValue } from 'jotai'
 import React, { Suspense, lazy, useEffect } from 'react'
@@ -10,7 +12,10 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 const LibraryPage = lazy(() => import('./pages/Library'))
 const PracticePage = lazy(() => import('./pages/Practice'))
 
+installProgressChangeTracking()
+
 function Root() {
+  useProgressAutoSync()
   const darkMode = useAtomValue(isOpenDarkModeAtom)
   useEffect(() => {
     if (darkMode) {

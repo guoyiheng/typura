@@ -5,17 +5,21 @@ export type ProgressSyncState = {
   remoteUpdatedAt?: number
   /** 本机进度最近一次变化的时间，未知时为空 */
   localUpdatedAt?: number
-  /** 本机是否已有练习进度 */
+  /** 本机是否已有真实的练习进度或生词本内容 */
   hasLocalProgress: boolean
 }
 
 /**
- * 决定同步方向：云端没有数据时上传；两边都有时间标记时取较新的一份；
- * 本机没有时间标记但已有进度时交给用户选择，避免误覆盖。
+ * 决定同步方向：
+ * - 云端没有数据时上传本机进度；
+ * - 本机没有真实进度（例如新设备）时恢复云端；
+ * - 两边都有进度时按时间取较新的一份；
+ * - 本机有进度但没有时间标记时交给用户选择，避免误覆盖。
  */
 export function decideProgressSync({ remoteUpdatedAt, localUpdatedAt, hasLocalProgress }: ProgressSyncState): ProgressSyncDecision {
   if (remoteUpdatedAt === undefined) return 'upload'
-  if (localUpdatedAt !== undefined) return localUpdatedAt >= remoteUpdatedAt ? 'upload' : 'restore'
+  if (!hasLocalProgress) return 'restore'
+  if (localUpdatedAt === undefined) return 'conflict'
 
-  return hasLocalProgress ? 'conflict' : 'restore'
+  return localUpdatedAt >= remoteUpdatedAt ? 'upload' : 'restore'
 }
