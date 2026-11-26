@@ -27,13 +27,12 @@ import type { Word } from '@/typings'
 import { isCharacterMatch } from '@/utils'
 import { useSaveWordRecord } from '@/utils/db'
 import { useHotkeyAction } from '@/utils/hotkeyBus'
-import { formatShortcut, isHotkeyRecorderEvent } from '@/utils/hotkeys'
+import { formatShortcut } from '@/utils/hotkeys'
 import type { MasteryEvent } from '@/utils/masteryRound'
 import { getWordExample } from '@/utils/wordExample'
 import type { WordExample } from '@/utils/wordExample'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
 import { useImmer } from 'use-immer'
 
 const VOWEL_LETTERS = ['A', 'E', 'I', 'O', 'U']
@@ -372,16 +371,6 @@ export default function WordComponent({
     }
   }, [attempt.isComplete, activeExample, onFinish, playExamplePronunciation, playCurrentWordPronunciation])
 
-  useHotkeys(
-    keyboardShortcuts.playPause || 'ctrl',
-    (e) => {
-      e.preventDefault()
-      togglePronunciationPlayback()
-    },
-    { enableOnFormTags: true, ignoreEventWhen: isHotkeyRecorderEvent },
-    [togglePronunciationPlayback, keyboardShortcuts.playPause],
-  )
-
   useHotkeyAction('playPause', togglePronunciationPlayback)
 
   const toggleExamplePlayback = useCallback(() => {
@@ -423,16 +412,6 @@ export default function WordComponent({
       return previousIndex + 1
     })
   }, [attempt.isComplete, attempt.targetText.length, attempt.typedText.length, dictationSettings.isOpen, recordMastery])
-
-  useHotkeys(
-    keyboardShortcuts.hint || 'tab',
-    (e) => {
-      e.preventDefault()
-      revealNextCharacter()
-    },
-    { enableOnFormTags: true, ignoreEventWhen: isHotkeyRecorderEvent },
-    [revealNextCharacter, keyboardShortcuts.hint],
-  )
 
   useHotkeyAction('hint', revealNextCharacter)
 

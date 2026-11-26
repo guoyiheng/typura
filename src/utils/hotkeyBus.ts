@@ -11,6 +11,7 @@ export type HotkeyAction =
   | 'playPronunciation'
   | 'stopWordPronunciation'
   | 'toggleZenMode'
+  | 'addToWordbook'
 
 const EVENT_NAME = 'typura-hotkey-action'
 

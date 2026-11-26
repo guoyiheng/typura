@@ -9,6 +9,8 @@ import useSWR from 'swr'
 
 export type UseWordListResult = {
   words: WordWithIndex[]
+  /** 当前词典的完整词表，书籍模式为空 */
+  allWords: Word[]
   isLoading: boolean
   error: Error | undefined
 }
@@ -47,5 +49,5 @@ export function useWordList(): UseWordListResult {
     return normalizeWordList(newWords).map((word, index) => ({ ...word, index }))
   }, [isReviewMode, isBookMode, wordList, reviewRecord?.words, currentDictInfo, currentChapter, chapterLength])
 
-  return { words, isLoading: isBookMode ? false : isLoading, error }
+  return { words, allWords: wordList ?? [], isLoading: isBookMode ? false : isLoading, error }
 }

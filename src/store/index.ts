@@ -6,11 +6,13 @@ import { correctSoundResources, keySoundResources, wrongSoundResources } from '@
 import type { Dictionary, LoopWordTimesOption, PhoneticType, PronunciationType, WordDictationOpenBy, WordDictationType } from '@/typings'
 import { getDictionaryChapter, getDictionaryChapterCount } from '@/utils'
 import type { ReviewRecord } from '@/utils/db/record'
-import { defaultHotkeysConfig } from '@/utils/hotkeys'
+import { defaultHotkeysConfig, migrateHotkeysConfigStorage, normalizeHotkeysConfig } from '@/utils/hotkeys'
 import type { HotkeysConfig } from '@/utils/hotkeys'
 import type { MasteryRound } from '@/utils/masteryRound'
 import { atom } from 'jotai'
 import { atomWithStorage } from 'jotai/utils'
+
+migrateHotkeysConfigStorage()
 
 export const chapterLengthConfigAtom = atomForConfig<{ length: number }>('chapterLengthConfig', {
   length: CHAPTER_LENGTH,
@@ -111,7 +113,15 @@ export const wordDictationConfigAtom = atomForConfig('wordDictationConfig', {
 // Whether to restart spelling the word from the beginning upon typo
 export const restartOnWrongAtom = atomWithStorage('restartOnWrong', false)
 
-export const hotkeysConfigAtom = atomForConfig<HotkeysConfig>('hotkeysConfig', defaultHotkeysConfig)
+const hotkeysConfigStorageAtom = atomWithStorage<HotkeysConfig>('hotkeysConfig', defaultHotkeysConfig)
+
+export const hotkeysConfigAtom = atom(
+  (get) => normalizeHotkeysConfig(get(hotkeysConfigStorageAtom)),
+  (get, set, update: HotkeysConfig | ((previous: HotkeysConfig) => HotkeysConfig)) => {
+    const previous = normalizeHotkeysConfig(get(hotkeysConfigStorageAtom))
+    set(hotkeysConfigStorageAtom, normalizeHotkeysConfig(typeof update === 'function' ? update(previous) : update))
+  },
+)
 
 type WordStatus = 'forgotten' | 'blurry' | 'familiar' | 'normal'
 export interface WordStatItem {

@@ -9,6 +9,7 @@ import WordDictationSwitcher from './components/WordDictationSwitcher'
 import WordList from './components/WordList'
 import WordPanel from './components/WordPanel'
 import { WordStatusPanel } from './components/WordStatusPanel'
+import WordbookButton from './components/WordbookButton'
 import { useConfetti } from './hooks/useConfetti'
 import { usePersistPracticeProgress, useRestorePracticeProgress } from './hooks/usePracticeProgress'
 import { useWordList } from './hooks/useWordList'
@@ -19,6 +20,7 @@ import { LoadingUI } from '@/components/Loading'
 import Tooltip from '@/components/Tooltip'
 import { idDictionaryMap } from '@/resources/dictionary'
 import {
+  chapterLengthAtom,
   currentChapterAtom,
   currentChapterInfoAtom,
   currentDictIdAtom,
@@ -28,6 +30,7 @@ import {
   isZenModeAtom,
   masteryRoundsAtom,
   randomConfigAtom,
+  reviewModeInfoAtom,
   wordDictationConfigAtom,
 } from '@/store'
 import {
@@ -37,21 +40,26 @@ import {
   normalizeDailyPracticeStats,
 } from '@/store/dailyPracticeStats'
 import { recordMasteryEventAtom } from '@/store/mastery'
+import type { WordbookEntry } from '@/store/wordbook'
+import { getWordbookEntryKey, removeWordbookEntry, upsertWordbookEntry, wordbookAtom } from '@/store/wordbook'
+import type { WordWithIndex } from '@/typings'
 import { CTRL, IsDesktop, isLegal } from '@/utils'
 import { useSaveChapterRecord } from '@/utils/db'
-import { useHotkeyAction } from '@/utils/hotkeyBus'
-import { eventMatchesShortcut, isHotkeyRecorderEvent } from '@/utils/hotkeys'
+import { emitHotkeyAction, useHotkeyAction } from '@/utils/hotkeyBus'
+import type { HotkeyAction } from '@/utils/hotkeyBus'
+import { eventMatchesShortcut, formatShortcut, isEditableHotkeyTarget, isHotkeyRecorderEvent } from '@/utils/hotkeys'
 import { MASTERY_ANSWER_EXPOSED_EVENT } from '@/utils/mastery'
+import { getDictionaryWordLocation } from '@/utils/wordbook'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Languages, Minimize2 } from 'lucide-react'
+import { BookmarkMinus, BookmarkPlus, Languages, Minimize2 } from 'lucide-react'
 import type React from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useImmerReducer } from 'use-immer'
 
 const PracticePage: React.FC = () => {
   const [state, practiceDispatch] = useImmerReducer(practiceReducer, structuredClone(initialPracticeState))
   const [isLoading, setIsLoading] = useState<boolean>(true)
-  const { words } = useWordList()
+  const { words, allWords } = useWordList()
 
   const [currentDictId, setCurrentDictId] = useAtom(currentDictIdAtom)
   const [currentChapter, setCurrentChapter] = useAtom(currentChapterAtom)
@@ -68,6 +76,13 @@ const PracticePage: React.FC = () => {
   const recordMasteryEvent = useSetAtom(recordMasteryEventAtom)
   const saveChapterRecord = useSaveChapterRecord()
   const isBookMode = currentResource.contentType === 'book'
+  const [wordbook, setWordbook] = useAtom(wordbookAtom)
+  const chapterLength = useAtomValue(chapterLengthAtom)
+  const setReviewModeInfo = useSetAtom(reviewModeInfoAtom)
+  const [pendingWordJump, setPendingWordJump] = useState<{ dictId: string; chapter: number; wordIndex: number; word: string } | null>(null)
+  const [wordbookToast, setWordbookToast] = useState<{ message: string; tone: 'added' | 'removed' } | null>(null)
+  const wordbookToastTimerRef = useRef<number | null>(null)
+  const activeWord = state.chapterData.words[state.chapterData.index]
 
   const dispatch = useCallback(
     (action: PracticeAction) => {
@@ -155,30 +170,188 @@ const PracticePage: React.FC = () => {
   useHotkeyAction('toggleTrans', () => dispatch({ type: PracticeActionType.TOGGLE_TRANS_VISIBLE }))
   useHotkeyAction('toggleZenMode', () => setIsZenMode((prev) => !prev))
 
-  useEffect(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (isHotkeyRecorderEvent(e)) return
+  const showWordbookToast = useCallback((message: string, tone: 'added' | 'removed') => {
+    if (wordbookToastTimerRef.current) window.clearTimeout(wordbookToastTimerRef.current)
+    setWordbookToast({ message, tone })
+    wordbookToastTimerRef.current = window.setTimeout(() => {
+      setWordbookToast(null)
+      wordbookToastTimerRef.current = null
+    }, 1600)
+  }, [])
 
-      if (eventMatchesShortcut(e, hotkeysConfig.toggleZenMode)) {
-        e.preventDefault()
-        e.stopPropagation()
-        e.stopImmediatePropagation()
-        setIsZenMode((prev) => !prev)
-        return
-      }
+  useEffect(() => {
+    return () => {
+      if (wordbookToastTimerRef.current) window.clearTimeout(wordbookToastTimerRef.current)
+    }
+  }, [])
+
+  // 错题复习的词表不是章节顺序，入库时需要换算出单词在词典中的真实位置。
+  const resolveWordLocation = useCallback(
+    (word: WordWithIndex) => {
+      if (!isReviewMode && currentChapter >= 0) return { chapter: currentChapter, wordIndex: word.index }
+
+      const globalIndex = allWords.findIndex((item) => item.name === word.name)
+      return (
+        getDictionaryWordLocation(currentResource, globalIndex, chapterLength) ?? {
+          chapter: Math.max(0, currentChapter),
+          wordIndex: word.index,
+        }
+      )
+    },
+    [allWords, chapterLength, currentChapter, currentResource, isReviewMode],
+  )
+
+  const toggleWordbook = useCallback(() => {
+    const word = state.chapterData.words[state.chapterData.index]
+    if (!word || state.isFinished) return
+
+    const entryRef = { dictId: currentResource.id, word: word.name }
+    const entryKey = getWordbookEntryKey(entryRef)
+    const isCollected = wordbook.some((entry) => getWordbookEntryKey(entry) === entryKey)
+
+    if (isCollected) {
+      setWordbook((entries) => removeWordbookEntry(entries, entryRef))
+      showWordbookToast(`已将 ${word.name} 移出生词本`, 'removed')
+      return
+    }
+
+    const location = resolveWordLocation(word)
+    setWordbook((entries) =>
+      upsertWordbookEntry(entries, {
+        word: word.name,
+        trans: word.trans,
+        dictId: currentResource.id,
+        dictName: currentResource.name,
+        chapter: location.chapter,
+        wordIndex: location.wordIndex,
+        addedAt: Date.now(),
+      }),
+    )
+    showWordbookToast(`已将 ${word.name} 加入生词本`, 'added')
+  }, [
+    currentResource.id,
+    currentResource.name,
+    resolveWordLocation,
+    setWordbook,
+    showWordbookToast,
+    state.chapterData.index,
+    state.chapterData.words,
+    state.isFinished,
+    wordbook,
+  ])
+
+  const removeWordbookItem = useCallback(
+    (entry: WordbookEntry) => {
+      setWordbook((entries) => removeWordbookEntry(entries, entry))
+      showWordbookToast(`已将 ${entry.word} 移出生词本`, 'removed')
+    },
+    [setWordbook, showWordbookToast],
+  )
+
+  const jumpToWordbookEntry = useCallback(
+    (entry: WordbookEntry) => {
+      const targetChapter = Math.max(0, entry.chapter)
+      setPendingWordJump({ dictId: entry.dictId, chapter: targetChapter, wordIndex: entry.wordIndex, word: entry.word })
+      if (isReviewMode) setReviewModeInfo({ isReviewMode: false, reviewRecord: undefined })
+      if (entry.dictId !== currentDictId) setCurrentDictId(entry.dictId)
+      if (targetChapter !== currentChapter) setCurrentChapter(targetChapter)
+    },
+    [currentChapter, currentDictId, isReviewMode, setCurrentChapter, setCurrentDictId, setReviewModeInfo],
+  )
+
+  // 词典、章节都与生词来源一致后，再跳到该单词所在的位置。
+  useEffect(() => {
+    if (!pendingWordJump) return
+    if (pendingWordJump.dictId !== currentDictId || pendingWordJump.chapter !== currentChapter) return
+
+    const chapterWords = state.chapterData.words
+    const expectedScope = `${currentDictId}:chapter:${currentChapter}:size:${chapterLength}`
+    if (chapterWords.length === 0 || state.masteryScope !== expectedScope) return
+
+    const matchedIndex = chapterWords.findIndex((word) => word.index === pendingWordJump.wordIndex)
+    const targetIndex =
+      matchedIndex >= 0 && chapterWords[matchedIndex].name === pendingWordJump.word
+        ? matchedIndex
+        : chapterWords.findIndex((word) => word.name === pendingWordJump.word)
+
+    setPendingWordJump(null)
+    if (targetIndex < 0) return
+
+    if (state.isFinished) {
+      dispatch({
+        type: PracticeActionType.SETUP_CHAPTER,
+        payload: { words: chapterWords, masteryScope: state.masteryScope, shouldShuffle: false, initialIndex: targetIndex },
+      })
+      return
+    }
+
+    dispatch({ type: PracticeActionType.SKIP_2_WORD_INDEX, newIndex: targetIndex })
+  }, [
+    chapterLength,
+    currentChapter,
+    currentDictId,
+    dispatch,
+    pendingWordJump,
+    state.chapterData.words,
+    state.isFinished,
+    state.masteryScope,
+  ])
+
+  useHotkeyAction('addToWordbook', toggleWordbook)
+
+  useEffect(() => {
+    // 全局快捷键在捕获阶段统一消费，避免数字按键同时被写进单词输入。
+    const globalShortcuts: Array<{ shortcut: string; action: HotkeyAction }> = [
+      { shortcut: hotkeysConfig.toggleZenMode, action: 'toggleZenMode' },
+      { shortcut: hotkeysConfig.playPause, action: 'playPause' },
+      { shortcut: hotkeysConfig.hint, action: 'hint' },
+      { shortcut: hotkeysConfig.addToWordbook, action: 'addToWordbook' },
+    ]
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (isHotkeyRecorderEvent(e) || isEditableHotkeyTarget(e.target)) return
 
       if ((e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27) && isZenMode) {
         e.preventDefault()
         e.stopPropagation()
         setIsZenMode(false)
+        return
       }
+
+      const activeWordName = state.chapterData.words[state.chapterData.index]?.name ?? ''
+      const isTypingActiveWordCharacter =
+        state.isTyping &&
+        e.key.length === 1 &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.metaKey &&
+        activeWordName.toLowerCase().includes(e.key.toLowerCase())
+      if (isTypingActiveWordCharacter) return
+
+      const matched = globalShortcuts.find(({ shortcut }) => eventMatchesShortcut(e, shortcut))
+      if (!matched) return
+
+      e.preventDefault()
+      e.stopPropagation()
+      e.stopImmediatePropagation()
+      emitHotkeyAction(matched.action)
     }
 
     window.addEventListener('keydown', handleGlobalKeyDown, true)
     return () => {
       window.removeEventListener('keydown', handleGlobalKeyDown, true)
     }
-  }, [hotkeysConfig.toggleZenMode, isZenMode, setIsZenMode])
+  }, [
+    hotkeysConfig.addToWordbook,
+    hotkeysConfig.hint,
+    hotkeysConfig.playPause,
+    hotkeysConfig.toggleZenMode,
+    isZenMode,
+    setIsZenMode,
+    state.chapterData.index,
+    state.chapterData.words,
+    state.isTyping,
+  ])
 
   useEffect(() => {
     // 检测用户设备
@@ -264,10 +437,30 @@ const PracticePage: React.FC = () => {
   return (
     <PracticeContext.Provider value={{ state, dispatch }}>
       {state.isFinished && <ResultScreen />}
+      {wordbookToast && (
+        <div
+          role="status"
+          className="animate__animated animate__fadeIn animate__faster pointer-events-none fixed top-16 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border border-[var(--line-strong)] bg-[var(--surface-raised)] px-4 py-2 text-xs font-semibold text-[var(--ink)] shadow-md select-none"
+        >
+          {wordbookToast.tone === 'added' ? (
+            <BookmarkPlus className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
+          ) : (
+            <BookmarkMinus className="h-4 w-4 text-[var(--muted)]" aria-hidden="true" />
+          )}
+          <span>{wordbookToast.message}</span>
+        </div>
+      )}
       <Layout>
         {/* 导航 */}
         {!isZenMode && (
           <Header>
+            <WordbookButton
+              entries={wordbook}
+              currentEntryKey={activeWord ? getWordbookEntryKey({ dictId: currentResource.id, word: activeWord.name }) : undefined}
+              addShortcutLabel={formatShortcut(hotkeysConfig.addToWordbook)}
+              onRemove={removeWordbookItem}
+              onSelect={jumpToWordbookEntry}
+            />
             <DictChapterButton />
             {!isBookMode && <WordList />}
             {!isBookMode && <WordDictationSwitcher />}
