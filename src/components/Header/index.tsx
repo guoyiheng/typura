@@ -1,6 +1,21 @@
-import type { PropsWithChildren } from 'react'
+import type { MouseEvent, PropsWithChildren } from 'react'
 import type React from 'react'
 import { NavLink } from 'react-router-dom'
+
+/** 鼠标点击后主动失焦，避免按钮残留焦点样式与提示浮层。 */
+const blurClickedControl = (event: MouseEvent<HTMLElement>) => {
+  if (event.detail === 0) return
+
+  const target = event.target
+  if (!(target instanceof HTMLElement)) return
+
+  const control = target.closest('button, [role="button"], a')
+  if (!(control instanceof HTMLElement)) return
+
+  window.requestAnimationFrame(() => {
+    if (document.activeElement === control) control.blur()
+  })
+}
 
 const Header: React.FC<PropsWithChildren> = ({ children }) => {
   return (
@@ -13,7 +28,11 @@ const Header: React.FC<PropsWithChildren> = ({ children }) => {
           <span className="font-display min-w-0 truncate text-[22px] font-semibold">Typura 纯键</span>
         </NavLink>
 
-        <nav className="top-nav__tools flex w-full min-w-0 flex-wrap items-center gap-1 lg:w-auto lg:flex-nowrap" aria-label="练习工具栏">
+        <nav
+          className="top-nav__tools flex w-full min-w-0 flex-wrap items-center gap-1 lg:w-auto lg:flex-nowrap"
+          aria-label="练习工具栏"
+          onClickCapture={blurClickedControl}
+        >
           {children}
         </nav>
       </div>

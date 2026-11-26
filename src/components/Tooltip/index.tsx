@@ -1,9 +1,17 @@
 import { classNames } from '@/utils'
-import type { ReactNode } from 'react'
+import type { FocusEvent, ReactNode } from 'react'
 import { useState } from 'react'
 
 const Tooltip = ({ children, content, className, placement = 'top', disabled = false }: TooltipProps) => {
   const [visible, setVisible] = useState(false)
+
+  // 鼠标点击会把按钮聚焦，但不应该因此留下提示浮层。
+  const handleFocus = (event: FocusEvent<HTMLDivElement>) => {
+    const target = event.target
+    if (target instanceof HTMLElement && target.matches(':focus-visible')) {
+      setVisible(true)
+    }
+  }
 
   const placementClasses = {
     top: 'bottom-full pb-2',
@@ -15,7 +23,7 @@ const Tooltip = ({ children, content, className, placement = 'top', disabled = f
       <div
         onMouseEnter={() => setVisible(true)}
         onMouseLeave={() => setVisible(false)}
-        onFocus={() => setVisible(true)}
+        onFocus={handleFocus}
         onBlur={() => setVisible(false)}
       >
         {children}
