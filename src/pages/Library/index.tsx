@@ -29,13 +29,40 @@ const initialFilters: LibraryFilters = {
   query: '',
 }
 
+const LIBRARY_FILTERS_STORAGE_KEY = 'libraryFilters'
+const libraryLanguages: LanguageCategoryType[] = ['en', 'ja', 'de', 'code', 'kk', 'id']
+
+/** 读取上次的筛选与搜索条件，让词典库的搜索在离开页面后仍然保留。 */
+function readStoredLibraryFilters(): LibraryFilters | undefined {
+  try {
+    const raw = window.localStorage.getItem(LIBRARY_FILTERS_STORAGE_KEY)
+    if (!raw) return undefined
+
+    const parsed: unknown = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return undefined
+
+    const { language, category, tag, query } = parsed as Partial<LibraryFilters>
+    if (!language || !libraryLanguages.includes(language)) return undefined
+
+    return {
+      language,
+      category: typeof category === 'string' && category ? category : initialFilters.category,
+      tag: typeof tag === 'string' && tag ? tag : initialFilters.tag,
+      query: typeof query === 'string' ? query : initialFilters.query,
+    }
+  } catch {
+    return undefined
+  }
+}
+
 export const LibraryContext = createContext<{
   filters: LibraryFilters
   updateFilters: Updater<LibraryFilters>
 } | null>(null)
 
 export default function LibraryPage() {
-  const [filters, updateFilters] = useImmer<LibraryFilters>(initialFilters)
+  const [filters, updateFilters] = useImmer<LibraryFilters>(() => readStoredLibraryFilters() ?? initialFilters)
+  const hasSearchQuery = filters.query.trim().length > 0
   const navigate = useNavigate()
   const activeDictionary = useAtomValue(currentDictInfoAtom)
   const [libraryMode, setLibraryMode] = useState<'dictionary' | 'book'>(() =>
@@ -91,14 +118,24 @@ export default function LibraryPage() {
   }, [updateFilters])
 
   useEffect(() => {
+    try {
+      window.localStorage.setItem(LIBRARY_FILTERS_STORAGE_KEY, JSON.stringify(filters))
+    } catch (error) {
+      console.error(error)
+    }
+  }, [filters])
+
+  useEffect(() => {
     // 书籍与生词本不是词典库中的条目，保持当前筛选条件。
     if (activeDictionary.contentType === 'book' || activeDictionary.id === WORDBOOK_DICT_ID) return
+    // 用户正在搜索时保留搜索上下文，避免切换词典后搜索结果被重置。
+    if (hasSearchQuery) return
     updateFilters((draft) => {
       draft.language = activeDictionary.languageCategory
       draft.category = activeDictionary.category || 'ALL'
       draft.tag = activeDictionary.tags?.[0] || 'ALL'
     })
-  }, [activeDictionary, updateFilters])
+  }, [activeDictionary, hasSearchQuery, updateFilters])
 
   return (
     <Layout>
