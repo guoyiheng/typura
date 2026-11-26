@@ -6,7 +6,7 @@ import { Popover, PopoverButton, PopoverPanel, Transition } from '@headlessui/re
 import { useAtomValue } from 'jotai'
 import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 
-const PROGRESS_RING_RADIUS = 11.5
+const PROGRESS_RING_RADIUS = 8
 const PROGRESS_RING_CIRCUMFERENCE = 2 * Math.PI * PROGRESS_RING_RADIUS
 
 export default function WordList() {
@@ -52,33 +52,29 @@ export default function WordList() {
         <>
           <Tooltip content={totalWords ? `单词列表 (${completedWords}/${totalWords})` : '单词列表'} placement="bottom" disabled={open}>
             <PopoverButton
-              className={`icon-button ${open ? 'border-[var(--line)] bg-[var(--surface-soft)] text-[var(--ink)]' : ''}`}
+              className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-transparent px-2.5 text-[var(--muted)] transition-colors hover:border-[var(--line)] hover:bg-[var(--surface-soft)] hover:text-[var(--ink)] ${
+                open ? 'border-[var(--line)] bg-[var(--surface-soft)] text-[var(--ink)]' : ''
+              }`}
               aria-label={`打开单词列表，当前进度 ${progressLabel}`}
               disabled={!totalWords}
             >
-              <span className="relative flex h-[30px] w-[30px] items-center justify-center">
-                <svg viewBox="0 0 30 30" className="absolute inset-0 h-full w-full -rotate-90" aria-hidden="true">
-                  <circle cx="15" cy="15" r={PROGRESS_RING_RADIUS} fill="none" stroke="var(--line)" strokeWidth="2.5" />
-                  <circle
-                    cx="15"
-                    cy="15"
-                    r={PROGRESS_RING_RADIUS}
-                    fill="none"
-                    stroke="var(--primary)"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeDasharray={PROGRESS_RING_CIRCUMFERENCE}
-                    strokeDashoffset={PROGRESS_RING_CIRCUMFERENCE * (1 - progressRatio)}
-                    className="transition-[stroke-dashoffset] duration-300 ease-out"
-                  />
-                </svg>
-                <span
-                  className={`relative font-mono font-semibold text-[var(--ink)] tabular-nums ${
-                    completedWords > 99 ? 'text-[9px]' : 'text-[10px]'
-                  }`}
-                >
-                  {totalWords === 0 ? '–' : completedWords}
-                </span>
+              <svg viewBox="0 0 20 20" className="h-5 w-5 shrink-0 -rotate-90" aria-hidden="true">
+                <circle cx="10" cy="10" r={PROGRESS_RING_RADIUS} fill="none" stroke="var(--line)" strokeWidth="2" />
+                <circle
+                  cx="10"
+                  cy="10"
+                  r={PROGRESS_RING_RADIUS}
+                  fill="none"
+                  stroke="var(--primary)"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeDasharray={PROGRESS_RING_CIRCUMFERENCE}
+                  strokeDashoffset={PROGRESS_RING_CIRCUMFERENCE * (1 - progressRatio)}
+                  className="transition-[stroke-dashoffset] duration-300 ease-out"
+                />
+              </svg>
+              <span className="font-mono text-[11px] font-semibold text-[var(--ink)] tabular-nums">
+                {totalWords === 0 ? '–' : `${completedWords}/${totalWords}`}
               </span>
             </PopoverButton>
           </Tooltip>

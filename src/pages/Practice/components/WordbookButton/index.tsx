@@ -1,21 +1,32 @@
 import Tooltip from '@/components/Tooltip'
 import type { WordbookEntry } from '@/store/wordbook'
-import { getWordbookEntryKey } from '@/store/wordbook'
 import { formatTransByPOS } from '@/utils'
 import { Popover, PopoverButton, PopoverPanel, Transition } from '@headlessui/react'
-import { BookMarked, X } from 'lucide-react'
+import { BookMarked, Play, X } from 'lucide-react'
 
 type WordbookButtonProps = {
   entries: WordbookEntry[]
+  /** 当前是否正在练习生词本 */
+  isActive: boolean
   /** 当前单词已收藏时的键值，用于高亮入口 */
   currentEntryKey?: string
   addShortcutLabel: string
   onRemove: (entry: WordbookEntry) => void
   onSelect: (entry: WordbookEntry) => void
+  onPractice: () => void
 }
 
-export default function WordbookButton({ entries, currentEntryKey, addShortcutLabel, onRemove, onSelect }: WordbookButtonProps) {
-  const isCurrentCollected = Boolean(currentEntryKey) && entries.some((entry) => getWordbookEntryKey(entry) === currentEntryKey)
+export default function WordbookButton({
+  entries,
+  isActive,
+  currentEntryKey,
+  addShortcutLabel,
+  onRemove,
+  onSelect,
+  onPractice,
+}: WordbookButtonProps) {
+  const isCurrentCollected = Boolean(currentEntryKey) && entries.some((entry) => entry.word === currentEntryKey)
+  const isEntryCollected = isCurrentCollected || isActive
 
   return (
     <Popover className="relative z-30 inline-flex shrink-0 items-center">
@@ -23,8 +34,8 @@ export default function WordbookButton({ entries, currentEntryKey, addShortcutLa
         <>
           <Tooltip content={`生词本 (${entries.length})`} placement="bottom" disabled={open}>
             <PopoverButton
-              className={`icon-button relative ${open ? 'border-[var(--line)] bg-[var(--surface-soft)] text-[var(--ink)]' : ''} ${
-                isCurrentCollected && !open ? 'text-[var(--primary)]' : ''
+              className={`icon-button relative ${open || isActive ? 'border-[var(--line)] bg-[var(--surface-soft)] text-[var(--ink)]' : ''} ${
+                isEntryCollected && !open ? 'text-[var(--primary)]' : ''
               }`}
               aria-label={`打开生词本，共 ${entries.length} 个单词`}
             >
@@ -59,44 +70,54 @@ export default function WordbookButton({ entries, currentEntryKey, addShortcutLa
                     </span>
                   </div>
 
+                  <button
+                    type="button"
+                    className="primary-button mb-2 min-h-9 w-full shrink-0 gap-2 text-xs"
+                    disabled={entries.length === 0}
+                    onClick={() => {
+                      onPractice()
+                      close()
+                    }}
+                  >
+                    <Play className="h-3.5 w-3.5" aria-hidden="true" />
+                    {isActive ? '继续练习生词本' : '开始练习生词本'}
+                  </button>
+
                   {entries.length > 0 ? (
                     <div className="customized-scrollbar min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
-                      {entries.map((entry) => {
-                        const key = getWordbookEntryKey(entry)
-
-                        return (
-                          <div
-                            key={key}
-                            className="group flex items-start gap-2 rounded-md border border-transparent px-2 py-2 transition-colors hover:border-[var(--line)] hover:bg-[var(--surface-soft)]"
+                      {entries.map((entry) => (
+                        <div
+                          key={entry.word}
+                          className="group flex items-start gap-2 rounded-md border border-transparent px-2 py-2 transition-colors hover:border-[var(--line)] hover:bg-[var(--surface-soft)]"
+                        >
+                          <button
+                            type="button"
+                            className="min-w-0 flex-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--canvas)]"
+                            onClick={() => {
+                              onSelect(entry)
+                              close()
+                            }}
+                            title={`在生词本中练习 ${entry.word}`}
                           >
-                            <button
-                              type="button"
-                              className="min-w-0 flex-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--canvas)]"
-                              onClick={() => {
-                                onSelect(entry)
-                                close()
-                              }}
-                            >
-                              <span className="block truncate text-sm font-semibold text-[var(--ink)]">{entry.word}</span>
-                              <span className="mt-0.5 block truncate text-xs text-[var(--muted)]">
-                                {formatTransByPOS(entry.trans).join('；')}
-                              </span>
-                              <span className="mt-1 block truncate text-[11px] text-[var(--muted)] opacity-75">
-                                {entry.dictName} · 第 {entry.chapter + 1} 章
-                              </span>
-                            </button>
-                            <button
-                              type="button"
-                              className="icon-button h-7 w-7 flex-[0_0_28px] opacity-60 group-hover:opacity-100 hover:text-[var(--danger)]"
-                              onClick={() => onRemove(entry)}
-                              aria-label={`将 ${entry.word} 移出生词本`}
-                              title="移出生词本"
-                            >
-                              <X className="h-3.5 w-3.5" aria-hidden="true" />
-                            </button>
-                          </div>
-                        )
-                      })}
+                            <span className="block truncate text-sm font-semibold text-[var(--ink)]">{entry.word}</span>
+                            <span className="mt-0.5 block truncate text-xs text-[var(--muted)]">
+                              {formatTransByPOS(entry.trans).join('；')}
+                            </span>
+                            {entry.dictName && (
+                              <span className="mt-1 block truncate text-[11px] text-[var(--muted)] opacity-75">{entry.dictName}</span>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-button h-7 w-7 flex-[0_0_28px] opacity-60 group-hover:opacity-100 hover:text-[var(--danger)]"
+                            onClick={() => onRemove(entry)}
+                            aria-label={`将 ${entry.word} 移出生词本`}
+                            title="移出生词本"
+                          >
+                            <X className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   ) : (
                     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">

@@ -4,6 +4,7 @@ import { FilterConsole } from './FilterConsole'
 import { LanguageTabSwitcher } from './LanguageTabSwitcher'
 import Layout from '@/components/Layout'
 import { dictionaries } from '@/resources/dictionary'
+import { WORDBOOK_DICT_ID } from '@/resources/wordbook'
 import { currentDictInfoAtom } from '@/store'
 import type { LanguageCategoryType } from '@/typings'
 import groupBy from '@/utils/groupBy'
@@ -90,7 +91,8 @@ export default function LibraryPage() {
   }, [updateFilters])
 
   useEffect(() => {
-    if (activeDictionary.contentType === 'book') return
+    // 书籍与生词本不是词典库中的条目，保持当前筛选条件。
+    if (activeDictionary.contentType === 'book' || activeDictionary.id === WORDBOOK_DICT_ID) return
     updateFilters((draft) => {
       draft.language = activeDictionary.languageCategory
       draft.category = activeDictionary.category || 'ALL'

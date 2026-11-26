@@ -691,6 +691,10 @@ button,
     padding-left: 0;
   }
 
+  .top-nav__divider {
+    display: none;
+  }
+
   .practice-layout {
     min-height: auto;
     padding: 24px 24px 28px;
@@ -811,6 +815,15 @@ button,
   transform: translateY(1px);
 }
 
+.top-nav__divider {
+  width: 1px;
+  height: 24px;
+  flex: 0 0 1px;
+  align-self: center;
+  margin: 0 4px;
+  background: var(--line);
+}
+
 .primary-button {
   display: inline-flex;
   min-height: 40px;
@@ -831,6 +844,19 @@ button,
 
 .primary-button:hover {
   background: var(--primary-hover);
+}
+
+.primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.primary-button:disabled:hover {
+  background: var(--primary);
+}
+
+.primary-button:disabled:active {
+  transform: none;
 }
 
 .primary-button:active {

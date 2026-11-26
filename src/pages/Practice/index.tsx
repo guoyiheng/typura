@@ -19,15 +19,19 @@ import Header from '@/components/Header'
 import { LoadingUI } from '@/components/Loading'
 import Tooltip from '@/components/Tooltip'
 import { idDictionaryMap } from '@/resources/dictionary'
+import { WORDBOOK_DICT_ID, wordbookDictionary } from '@/resources/wordbook'
 import {
   chapterLengthAtom,
   currentChapterAtom,
   currentChapterInfoAtom,
   currentDictIdAtom,
   currentDictInfoAtom,
+  dictationProgressAtom,
   hotkeysConfigAtom,
   isReviewModeAtom,
+  isWordbookDictAtom,
   isZenModeAtom,
+  learnProgressAtom,
   masteryRoundsAtom,
   randomConfigAtom,
   reviewModeInfoAtom,
@@ -41,25 +45,25 @@ import {
 } from '@/store/dailyPracticeStats'
 import { recordMasteryEventAtom } from '@/store/mastery'
 import type { WordbookEntry } from '@/store/wordbook'
-import { getWordbookEntryKey, removeWordbookEntry, upsertWordbookEntry, wordbookAtom } from '@/store/wordbook'
-import type { WordWithIndex } from '@/typings'
+import { normalizeWordbookEntries, removeWordbookEntry, upsertWordbookEntry, wordbookAtom, wordbookEntriesAtom } from '@/store/wordbook'
 import { CTRL, IsDesktop, isLegal } from '@/utils'
 import { useSaveChapterRecord } from '@/utils/db'
 import { emitHotkeyAction, useHotkeyAction } from '@/utils/hotkeyBus'
 import type { HotkeyAction } from '@/utils/hotkeyBus'
 import { eventMatchesShortcut, formatShortcut, isEditableHotkeyTarget, isHotkeyRecorderEvent } from '@/utils/hotkeys'
 import { MASTERY_ANSWER_EXPOSED_EVENT } from '@/utils/mastery'
-import { getDictionaryWordLocation } from '@/utils/wordbook'
+import { getDictionaryWordLocation, getWordbookChapterCount } from '@/utils/wordbook'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { BookmarkMinus, BookmarkPlus, Languages, Minimize2 } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { NavLink } from 'react-router-dom'
 import { useImmerReducer } from 'use-immer'
 
 const PracticePage: React.FC = () => {
   const [state, practiceDispatch] = useImmerReducer(practiceReducer, structuredClone(initialPracticeState))
   const [isLoading, setIsLoading] = useState<boolean>(true)
-  const { words, allWords } = useWordList()
+  const { words } = useWordList()
 
   const [currentDictId, setCurrentDictId] = useAtom(currentDictIdAtom)
   const [currentChapter, setCurrentChapter] = useAtom(currentChapterAtom)
@@ -76,8 +80,12 @@ const PracticePage: React.FC = () => {
   const recordMasteryEvent = useSetAtom(recordMasteryEventAtom)
   const saveChapterRecord = useSaveChapterRecord()
   const isBookMode = currentResource.contentType === 'book'
-  const [wordbook, setWordbook] = useAtom(wordbookAtom)
+  const setWordbook = useSetAtom(wordbookAtom)
+  const wordbookEntries = useAtomValue(wordbookEntriesAtom)
+  const isWordbookDict = useAtomValue(isWordbookDictAtom)
   const chapterLength = useAtomValue(chapterLengthAtom)
+  const learnProgress = useAtomValue(learnProgressAtom)
+  const dictationProgress = useAtomValue(dictationProgressAtom)
   const setReviewModeInfo = useSetAtom(reviewModeInfoAtom)
   const [pendingWordJump, setPendingWordJump] = useState<{ dictId: string; chapter: number; wordIndex: number; word: string } | null>(null)
   const [wordbookToast, setWordbookToast] = useState<{ message: string; tone: 'added' | 'removed' } | null>(null)
@@ -185,78 +193,97 @@ const PracticePage: React.FC = () => {
     }
   }, [])
 
-  // 错题复习的词表不是章节顺序，入库时需要换算出单词在词典中的真实位置。
-  const resolveWordLocation = useCallback(
-    (word: WordWithIndex) => {
-      if (!isReviewMode && currentChapter >= 0) return { chapter: currentChapter, wordIndex: word.index }
-
-      const globalIndex = allWords.findIndex((item) => item.name === word.name)
-      return (
-        getDictionaryWordLocation(currentResource, globalIndex, chapterLength) ?? {
-          chapter: Math.max(0, currentChapter),
-          wordIndex: word.index,
-        }
-      )
-    },
-    [allWords, chapterLength, currentChapter, currentResource, isReviewMode],
-  )
+  const wordbookChapterCount = getWordbookChapterCount(wordbookEntries.length, chapterLength)
+  const isWordbookEmpty = isWordbookDict && wordbookEntries.length === 0
 
   const toggleWordbook = useCallback(() => {
     const word = state.chapterData.words[state.chapterData.index]
     if (!word || state.isFinished) return
 
-    const entryRef = { dictId: currentResource.id, word: word.name }
-    const entryKey = getWordbookEntryKey(entryRef)
-    const isCollected = wordbook.some((entry) => getWordbookEntryKey(entry) === entryKey)
-
+    const isCollected = wordbookEntries.some((entry) => entry.word === word.name)
     if (isCollected) {
-      setWordbook((entries) => removeWordbookEntry(entries, entryRef))
+      setWordbook((entries) => removeWordbookEntry(normalizeWordbookEntries(entries), { word: word.name }))
       showWordbookToast(`已将 ${word.name} 移出生词本`, 'removed')
       return
     }
 
-    const location = resolveWordLocation(word)
+    // 生词本里的单词都来自收藏，不需要再入库一次。
+    if (isWordbookDict) return
+
     setWordbook((entries) =>
-      upsertWordbookEntry(entries, {
+      upsertWordbookEntry(normalizeWordbookEntries(entries), {
         word: word.name,
         trans: word.trans,
+        usphone: word.usphone,
+        ukphone: word.ukphone,
         dictId: currentResource.id,
         dictName: currentResource.name,
-        chapter: location.chapter,
-        wordIndex: location.wordIndex,
+        language: currentResource.language,
+        languageCategory: currentResource.languageCategory,
         addedAt: Date.now(),
       }),
     )
     showWordbookToast(`已将 ${word.name} 加入生词本`, 'added')
   }, [
     currentResource.id,
+    currentResource.language,
+    currentResource.languageCategory,
     currentResource.name,
-    resolveWordLocation,
+    isWordbookDict,
     setWordbook,
     showWordbookToast,
     state.chapterData.index,
     state.chapterData.words,
     state.isFinished,
-    wordbook,
+    wordbookEntries,
   ])
 
   const removeWordbookItem = useCallback(
     (entry: WordbookEntry) => {
-      setWordbook((entries) => removeWordbookEntry(entries, entry))
+      setWordbook((entries) => removeWordbookEntry(normalizeWordbookEntries(entries), entry))
       showWordbookToast(`已将 ${entry.word} 移出生词本`, 'removed')
     },
     [setWordbook, showWordbookToast],
   )
 
-  const jumpToWordbookEntry = useCallback(
-    (entry: WordbookEntry) => {
-      const targetChapter = Math.max(0, entry.chapter)
-      setPendingWordJump({ dictId: entry.dictId, chapter: targetChapter, wordIndex: entry.wordIndex, word: entry.word })
+  // 生词本本身是一个词典：进入后可以像普通词典一样按章节练习。
+  const openWordbookPractice = useCallback(
+    (targetWord?: string) => {
+      if (wordbookEntries.length === 0) return
+
+      const resource = { ...wordbookDictionary, length: wordbookEntries.length }
+      const savedProgress = (wordDictationConfig.isOpen ? dictationProgress : learnProgress)[WORDBOOK_DICT_ID]
+      const savedChapter = Math.min(Math.max(0, savedProgress?.chapter ?? 0), Math.max(0, wordbookChapterCount - 1))
+      const targetLocation = targetWord
+        ? getDictionaryWordLocation(
+            resource,
+            wordbookEntries.findIndex((entry) => entry.word === targetWord),
+            chapterLength,
+          )
+        : undefined
+      const targetChapter = targetLocation?.chapter ?? savedChapter
+      const targetIndex = targetLocation ? targetLocation.wordIndex : (savedProgress?.index ?? 0)
+
       if (isReviewMode) setReviewModeInfo({ isReviewMode: false, reviewRecord: undefined })
-      if (entry.dictId !== currentDictId) setCurrentDictId(entry.dictId)
-      if (targetChapter !== currentChapter) setCurrentChapter(targetChapter)
+      setCurrentDictId(WORDBOOK_DICT_ID)
+      setCurrentChapter(targetChapter)
+      setPendingWordJump(
+        targetLocation ? { dictId: WORDBOOK_DICT_ID, chapter: targetChapter, wordIndex: targetIndex, word: targetWord ?? '' } : null,
+      )
     },
-    [currentChapter, currentDictId, isReviewMode, setCurrentChapter, setCurrentDictId, setReviewModeInfo],
+    [
+      chapterLength,
+      dictationProgress,
+      isReviewMode,
+      learnProgress,
+      setCurrentChapter,
+      setCurrentDictId,
+      setPendingWordJump,
+      setReviewModeInfo,
+      wordDictationConfig.isOpen,
+      wordbookChapterCount,
+      wordbookEntries,
+    ],
   )
 
   // 词典、章节都与生词来源一致后，再跳到该单词所在的位置。
@@ -454,39 +481,52 @@ const PracticePage: React.FC = () => {
         {/* 导航 */}
         {!isZenMode && (
           <Header>
-            <WordbookButton
-              entries={wordbook}
-              currentEntryKey={activeWord ? getWordbookEntryKey({ dictId: currentResource.id, word: activeWord.name }) : undefined}
-              addShortcutLabel={formatShortcut(hotkeysConfig.addToWordbook)}
-              onRemove={removeWordbookItem}
-              onSelect={jumpToWordbookEntry}
-            />
-            <DictChapterButton />
-            {!isBookMode && <WordList />}
-            {!isBookMode && <WordDictationSwitcher />}
+            <div className="flex min-w-0 items-center gap-1">
+              <WordbookButton
+                entries={wordbookEntries}
+                isActive={isWordbookDict}
+                currentEntryKey={activeWord?.name}
+                addShortcutLabel={formatShortcut(hotkeysConfig.addToWordbook)}
+                onRemove={removeWordbookItem}
+                onSelect={(entry) => openWordbookPractice(entry.word)}
+                onPractice={() => openWordbookPractice()}
+              />
+            </div>
 
-            {isBookMode ? (
-              <BookFontSizeControl />
-            ) : (
-              <Tooltip content={`开关释义显示 (${CTRL} + Shift + V)`} placement="bottom">
-                <button
-                  type="button"
-                  onClick={() => dispatch({ type: PracticeActionType.TOGGLE_TRANS_VISIBLE })}
-                  className={`icon-button ${state.isTransVisible ? 'text-[var(--primary)]' : 'text-[var(--muted)]'}`}
-                  aria-label="开关释义显示"
-                  aria-pressed={state.isTransVisible}
-                >
-                  {state.isTransVisible ? (
-                    <Languages className="h-[18px] w-[18px]" />
-                  ) : (
-                    <div className="relative flex items-center justify-center">
-                      <Languages className="h-[18px] w-[18px] opacity-45" />
-                      <span className="absolute h-[1.5px] w-[18px] rotate-[45deg] bg-[var(--muted)]" />
-                    </div>
-                  )}
-                </button>
-              </Tooltip>
-            )}
+            <span className="top-nav__divider" aria-hidden="true" />
+
+            <div className="flex min-w-0 flex-wrap items-center gap-1">
+              <DictChapterButton />
+              {!isBookMode && <WordList />}
+            </div>
+
+            <span className="top-nav__divider" aria-hidden="true" />
+
+            <div className="flex min-w-0 flex-wrap items-center gap-1">
+              {!isBookMode && <WordDictationSwitcher />}
+              {isBookMode ? (
+                <BookFontSizeControl />
+              ) : (
+                <Tooltip content={`开关释义显示 (${CTRL} + Shift + V)`} placement="bottom">
+                  <button
+                    type="button"
+                    onClick={() => dispatch({ type: PracticeActionType.TOGGLE_TRANS_VISIBLE })}
+                    className={`icon-button ${state.isTransVisible ? 'text-[var(--primary)]' : 'text-[var(--muted)]'}`}
+                    aria-label="开关释义显示"
+                    aria-pressed={state.isTransVisible}
+                  >
+                    {state.isTransVisible ? (
+                      <Languages className="h-[18px] w-[18px]" />
+                    ) : (
+                      <div className="relative flex items-center justify-center">
+                        <Languages className="h-[18px] w-[18px] opacity-45" />
+                        <span className="absolute h-[1.5px] w-[18px] rotate-[45deg] bg-[var(--muted)]" />
+                      </div>
+                    )}
+                  </button>
+                </Tooltip>
+              )}
+            </div>
 
             <SettingsMenu />
           </Header>
@@ -502,7 +542,26 @@ const PracticePage: React.FC = () => {
             >
               <section className={`practice-stage w-full ${isBookMode ? 'practice-stage--book' : ''}`} aria-label="当前练习">
                 <div className="practice-stage__body">
-                  {isLoading ? <LoadingUI /> : !state.isFinished && (isBookMode ? <BookPanel /> : <WordPanel key={state.restartCount} />)}
+                  {isWordbookEmpty ? (
+                    <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+                      <BookmarkPlus className="h-7 w-7 text-[var(--muted)]" aria-hidden="true" />
+                      <p className="text-lg font-semibold text-[var(--ink)]">生词本里还没有单词</p>
+                      <p className="max-w-sm text-sm leading-6 text-[var(--muted)]">
+                        练习时按{' '}
+                        <kbd className="rounded border border-[var(--line-strong)] bg-[var(--surface)] px-1 py-0.5 font-mono text-[11px] font-semibold">
+                          {formatShortcut(hotkeysConfig.addToWordbook)}
+                        </kbd>{' '}
+                        收藏想再练的单词，它们会按收藏顺序出现在这里。
+                      </p>
+                      <NavLink to="/library" className="secondary-button mt-1">
+                        去选一本词典
+                      </NavLink>
+                    </div>
+                  ) : isLoading ? (
+                    <LoadingUI />
+                  ) : (
+                    !state.isFinished && (isBookMode ? <BookPanel /> : <WordPanel key={state.restartCount} />)
+                  )}
                 </div>
               </section>
               {!isBookMode && !isZenMode && !state.isFinished && (

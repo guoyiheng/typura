@@ -1,16 +1,22 @@
 import atomForConfig from './atomForConfig'
 import { reviewInfoAtom } from './reviewInfoAtom'
+import { wordbookEntriesAtom } from './wordbook'
 import { CHAPTER_LENGTH, defaultFontSizeConfig } from '@/constants'
 import { idDictionaryMap } from '@/resources/dictionary'
 import { correctSoundResources, keySoundResources, wrongSoundResources } from '@/resources/soundResource'
+import { WORDBOOK_DICT_ID } from '@/resources/wordbook'
 import type { Dictionary, LoopWordTimesOption, PhoneticType, PronunciationType, WordDictationOpenBy, WordDictationType } from '@/typings'
 import { getDictionaryChapter, getDictionaryChapterCount } from '@/utils'
 import type { ReviewRecord } from '@/utils/db/record'
 import { defaultHotkeysConfig, migrateHotkeysConfigStorage, normalizeHotkeysConfig } from '@/utils/hotkeys'
 import type { HotkeysConfig } from '@/utils/hotkeys'
 import type { MasteryRound } from '@/utils/masteryRound'
+import { createWordbookDictionary } from '@/utils/wordbook'
 import { atom } from 'jotai'
 import { atomWithStorage } from 'jotai/utils'
+
+export { wordbookAtom, wordbookEntriesAtom } from './wordbook'
+export type { WordbookEntry } from './wordbook'
 
 migrateHotkeysConfigStorage()
 
@@ -23,6 +29,8 @@ export const currentDictIdAtom = atomWithStorage('currentDict', 'IELTSVocabulary
 export const currentDictInfoAtom = atom<Dictionary>((get) => {
   const id = get(currentDictIdAtom)
   const chapterLength = get(chapterLengthAtom)
+  if (id === WORDBOOK_DICT_ID) return createWordbookDictionary(get(wordbookEntriesAtom), chapterLength)
+
   let dict = idDictionaryMap[id]
   // 如果 dict 不存在，则返回 IELTSVocabularyBible。Practice 会校验 DictId，并在无效时恢复默认词典。
   if (!dict) {
@@ -33,6 +41,8 @@ export const currentDictInfoAtom = atom<Dictionary>((get) => {
     chapterCount: getDictionaryChapterCount(dict, chapterLength),
   }
 })
+
+export const isWordbookDictAtom = atom((get) => get(currentDictIdAtom) === WORDBOOK_DICT_ID)
 
 export const currentChapterAtom = atomWithStorage('currentChapter', 0)
 export const currentChapterInfoAtom = atom((get) =>

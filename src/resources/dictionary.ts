@@ -1,4 +1,5 @@
 import { books } from './books'
+import { wordbookDictionary } from './wordbook'
 import type { Dictionary, DictionaryResource } from '@/typings/index'
 import { getDictionaryChapterCount } from '@/utils'
 
@@ -4222,5 +4223,8 @@ export const dictionaries: Dictionary[] = dictionaryResources.map((resource) => 
 
 /**
  * An object-map from dictionary IDs to dictionary themselves.
+ * 生词本作为虚拟词典参与练习，但不出现在词典库列表中。
  */
-export const idDictionaryMap: Record<string, Dictionary> = Object.fromEntries([...dictionaries, ...books].map((dict) => [dict.id, dict]))
+export const idDictionaryMap: Record<string, Dictionary> = Object.fromEntries(
+  [...dictionaries, ...books, wordbookDictionary].map((dict) => [dict.id, dict]),
+)
