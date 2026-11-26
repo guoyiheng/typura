@@ -3,6 +3,7 @@
 // Runtime types generated with workerd@1.20260721.1 2026-07-22 nodejs_compat
 interface __BaseEnv_Env {
 	ASSETS: Fetcher;
+	PROGRESS_STORE: DurableObjectNamespace;
 }
 declare namespace Cloudflare {
 	interface GlobalProps {

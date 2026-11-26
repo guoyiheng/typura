@@ -5,6 +5,9 @@ const MAX_JSON_BYTES = 2 * 1024 * 1024
 const EXAMPLE_CACHE_VERSION = '12'
 const IMAGE_CACHE_VERSION = '1'
 const MISSING_EXAMPLE_CACHE_TTL = 24 * 60 * 60 * 1000
+const PROGRESS_KEY_PATTERN = /^[a-f0-9]{64}$/
+
+export { ProgressStore } from './progress-store'
 
 type WordExample = {
   english: string
@@ -659,6 +662,16 @@ async function handleWordExample(request: Request, ctx: ExecutionContext) {
   return response
 }
 
+async function handleProgressSync(request: Request, env: Env) {
+  const key = new URL(request.url).pathname.slice('/api/progress/'.length)
+  if (!PROGRESS_KEY_PATTERN.test(key)) {
+    return jsonResponse({ error: 'invalid_key' }, { status: 400, headers: { 'Cache-Control': 'no-store' } })
+  }
+
+  const stub = env.PROGRESS_STORE.get(env.PROGRESS_STORE.idFromName(key))
+  return stub.fetch(request)
+}
+
 async function handleWordImage(request: Request, ctx: ExecutionContext) {
   const word = normalizeWord(new URL(request.url).searchParams.get('word'))
   if (!isValidWord(word)) {
@@ -702,11 +715,21 @@ export default {
         status: 204,
         headers: {
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
           'Access-Control-Allow-Headers': 'Content-Type',
           'Access-Control-Max-Age': '86400',
         },
       })
+    }
+
+    if (url.pathname.startsWith('/api/progress/')) {
+      if (request.method !== 'GET' && request.method !== 'PUT') {
+        return jsonResponse(
+          { error: 'method_not_allowed' },
+          { status: 405, headers: { Allow: 'GET, PUT, OPTIONS', 'Cache-Control': 'no-store' } },
+        )
+      }
+      return handleProgressSync(request, env)
     }
 
     if (request.method !== 'GET') {

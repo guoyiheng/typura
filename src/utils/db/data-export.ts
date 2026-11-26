@@ -1,121 +1,83 @@
 import { db } from '.'
-import { getCurrentDate } from '..'
 
-export type ExportProgress = {
-  totalRows?: number
-  completedRows: number
-  done: boolean
+export type ProgressSnapshot = {
+  /** 快照格式版本 */
+  version: 1
+  /** 快照对应的进度时间，用于判断哪一份更新 */
+  updatedAt: number
+  /** 浏览器本地设置与进度 */
+  localStorageData: Record<string, string>
+  /** IndexedDB 导出的数据 */
+  dexieJson: string
 }
 
-export type ImportProgress = {
-  totalRows?: number
-  completedRows: number
-  done: boolean
+const SNAPSHOT_VERSION = 1
+
+export function collectLocalStorageData(): Record<string, string> {
+  const data: Record<string, string> = {}
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index)
+    if (!key) continue
+    const value = localStorage.getItem(key)
+    if (value !== null) data[key] = value
+  }
+  return data
 }
 
-export async function exportDatabase(callback: (exportProgress: ExportProgress) => boolean) {
-  const [pako, { saveAs }] = await Promise.all([import('pako'), import('file-saver'), import('dexie-export-import')])
+export function parseProgressSnapshot(value: unknown): ProgressSnapshot | undefined {
+  if (!value || typeof value !== 'object') return undefined
 
-  const blob = await db.export({
-    progressCallback: ({ totalRows, completedRows, done }) => {
-      return callback({ totalRows, completedRows, done })
-    },
-  })
+  const snapshot = value as Partial<ProgressSnapshot>
+  if (typeof snapshot.updatedAt !== 'number' || !Number.isFinite(snapshot.updatedAt)) return undefined
+  if (!snapshot.localStorageData || typeof snapshot.localStorageData !== 'object') return undefined
+  if (typeof snapshot.dexieJson !== 'string') return undefined
+
+  const localStorageData: Record<string, string> = {}
+  for (const [key, item] of Object.entries(snapshot.localStorageData)) {
+    if (typeof item === 'string') localStorageData[key] = item
+  }
+
+  return {
+    version: SNAPSHOT_VERSION,
+    updatedAt: snapshot.updatedAt,
+    localStorageData,
+    dexieJson: snapshot.dexieJson,
+  }
+}
+
+export async function createProgressSnapshot(updatedAt = Date.now()): Promise<ProgressSnapshot> {
+  await import('dexie-export-import')
+
+  const blob = await db.export()
   const dexieJson = await blob.text()
 
-  // 收集当前所有的 localStorage 配置项与练习进度数据
-  const localStorageData: Record<string, string> = {}
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i)
-    if (key) {
-      const val = localStorage.getItem(key)
-      if (val !== null) {
-        localStorageData[key] = val
-      }
-    }
-  }
-
-  const exportPayload = {
-    version: 2,
-    exportDate: new Date().toISOString(),
-    localStorageData,
+  return {
+    version: SNAPSHOT_VERSION,
+    updatedAt,
+    localStorageData: collectLocalStorageData(),
     dexieJson,
   }
-
-  const jsonString = JSON.stringify(exportPayload)
-  const compressed = pako.gzip(jsonString)
-  const compressedBlob = new Blob([Uint8Array.from(compressed).buffer])
-  const currentDate = getCurrentDate()
-  saveAs(compressedBlob, `Typura-Backup-${currentDate}.gz`)
 }
 
-export async function importDatabase(onStart: () => void, callback: (importProgress: ImportProgress) => boolean) {
-  const [pako] = await Promise.all([import('pako'), import('dexie-export-import')])
+export async function applyProgressSnapshot(snapshot: ProgressSnapshot) {
+  await import('dexie-export-import')
 
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = '.gz,application/gzip,application/x-gzip'
-  input.addEventListener('change', async () => {
-    const file = input.files?.[0]
-    if (!file) return
+  const { dexieJson, localStorageData } = snapshot
 
-    onStart()
+  // 旧备份没有轮次状态，不能沿用导入前的排除/完成标记。
+  if (!Object.hasOwn(localStorageData, 'masteryRounds')) localStorage.removeItem('masteryRounds')
+  for (const [key, value] of Object.entries(localStorageData)) {
+    localStorage.setItem(key, value)
+  }
 
-    try {
-      const compressed = await file.arrayBuffer()
-      const jsonString = pako.ungzip(new Uint8Array(compressed), { toText: true })
-
-      let dexieJsonText = jsonString
-      let localStorageData: Record<string, string> | undefined
-
-      try {
-        const parsed = JSON.parse(jsonString)
-        if (parsed && typeof parsed === 'object' && ('dexieJson' in parsed || 'localStorageData' in parsed)) {
-          dexieJsonText = parsed.dexieJson || ''
-          localStorageData = parsed.localStorageData
-        }
-      } catch {
-        // 如果解析包装 JSON 失败，说明是旧版直接导出 Dexie JSON 的备份文件
-      }
-
-      // 还原所有系统设置项与本地存储
-      if (localStorageData && typeof localStorageData === 'object') {
-        // 旧备份没有轮次状态，不能沿用导入前的排除/完成标记。
-        if (!Object.hasOwn(localStorageData, 'masteryRounds')) localStorage.removeItem('masteryRounds')
-        Object.entries(localStorageData).forEach(([k, v]) => {
-          if (typeof v === 'string') {
-            localStorage.setItem(k, v)
-          }
-        })
-      }
-
-      if (dexieJsonText) {
-        const blob = new Blob([dexieJsonText])
-        await db.import(blob, {
-          acceptVersionDiff: true,
-          acceptMissingTables: true,
-          acceptNameDiff: false,
-          acceptChangedPrimaryKey: false,
-          overwriteValues: true,
-          clearTablesBeforeImport: true,
-          progressCallback: ({ totalRows, completedRows, done }) => {
-            return callback({ totalRows, completedRows, done })
-          },
-        })
-      } else {
-        callback({ completedRows: 1, done: true })
-      }
-
-      // 延迟刷新页面以生效所有新的本地配置与 Jotai 原子状态
-      setTimeout(() => {
-        window.location.reload()
-      }, 500)
-    } catch (err) {
-      console.error('Import failed:', err)
-      alert('数据导入失败，请检查备份文件格式是否正确。')
-      callback({ completedRows: 0, done: true })
-    }
-  })
-
-  input.click()
+  if (dexieJson) {
+    await db.import(new Blob([dexieJson]), {
+      acceptVersionDiff: true,
+      acceptMissingTables: true,
+      acceptNameDiff: false,
+      acceptChangedPrimaryKey: false,
+      overwriteValues: true,
+      clearTablesBeforeImport: true,
+    })
+  }
 }

@@ -23,29 +23,32 @@ import {
 } from '@/store'
 import type { PronunciationType, SoundResource } from '@/typings'
 import { getDictionaryChapterLength, hasDictionaryPresetChapters, toFixedNumber } from '@/utils'
-import type { ExportProgress, ImportProgress } from '@/utils/db/data-export'
-import { exportDatabase, importDatabase } from '@/utils/db/data-export'
+import {
+  getLocalProgressUpdatedAt,
+  getStoredSyncPassphrase,
+  isValidSyncPassphrase,
+  normalizePassphrase,
+  saveSyncPassphrase,
+  syncProgress,
+} from '@/utils/db/progress-sync'
 import { playKeySoundResource } from '@/utils/sounds/keySounds'
 import { Listbox, Switch, Transition } from '@headlessui/react'
-import * as Progress from '@radix-ui/react-progress'
 import * as RadioGroup from '@radix-ui/react-radio-group'
 import * as Slider from '@radix-ui/react-slider'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
-  AlertTriangle,
   Bell,
   Check,
   ChevronDown,
   Command,
   Database,
-  Download,
   Ear,
   Keyboard,
   ListFilter,
+  RefreshCw,
   Repeat,
   RotateCcw,
   SlidersHorizontal,
-  Upload,
   Volume2,
 } from 'lucide-react'
 import { Fragment, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
@@ -137,20 +140,6 @@ function SectionContainer({ children, description, id, title }: { children: Reac
   )
 }
 
-function ProgressLine({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="flex w-full items-center gap-3">
-      <Progress.Root className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--line)]" value={value} aria-label={label}>
-        <Progress.Indicator
-          className="h-full w-full bg-[var(--primary)] transition-transform duration-500 ease-out"
-          style={{ transform: `translateX(-${100 - value}%)` }}
-        />
-      </Progress.Root>
-      <span className="w-10 text-right text-xs font-semibold text-[var(--muted)] tabular-nums">{value}%</span>
-    </div>
-  )
-}
-
 function DataAction({
   action,
   children,
@@ -193,11 +182,11 @@ export default function Setting({ open, onOpenChange }: { open: boolean; onOpenC
   const [keySounds, setKeySounds] = useAtom(keySoundsConfigAtom)
   const [feedbackSounds, setFeedbackSounds] = useAtom(hintSoundsConfigAtom)
 
-  // Data Reset & Backup State
-  const [isExporting, setIsExporting] = useState(false)
-  const [exportProgress, setExportProgress] = useState(0)
-  const [isImporting, setIsImporting] = useState(false)
-  const [importProgress, setImportProgress] = useState(0)
+  // Data Reset & Sync State
+  const [syncPassphrase, setSyncPassphrase] = useState(() => getStoredSyncPassphrase())
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [syncMessage, setSyncMessage] = useState<{ tone: 'success' | 'error' | 'info'; text: string } | undefined>(undefined)
+  const [syncConflict, setSyncConflict] = useState<{ remoteUpdatedAt: number } | undefined>(undefined)
   const [learnResetComplete, setLearnResetComplete] = useState(false)
   const [dictationResetComplete, setDictationResetComplete] = useState(false)
 
@@ -385,40 +374,56 @@ export default function Setting({ open, onOpenChange }: { open: boolean; onOpenC
     setTimeout(() => setDictationResetComplete(false), 2000)
   }, [currentDictionaryId, restartAtFirstChapter, setDictationProgress, setMasteryRounds])
 
-  const updateExportProgress = useCallback(({ totalRows, completedRows, done }: ExportProgress) => {
-    if (done) {
-      setIsExporting(false)
-      setExportProgress(100)
-      return true
-    }
-    if (totalRows) setExportProgress(Math.floor((completedRows / totalRows) * 100))
-    return true
-  }, [])
+  const localProgressUpdatedAt = getLocalProgressUpdatedAt()
+  const canSync = isValidSyncPassphrase(syncPassphrase) && !isSyncing
 
-  const exportData = useCallback(() => {
-    setExportProgress(0)
-    setIsExporting(true)
-    exportDatabase(updateExportProgress)
-  }, [updateExportProgress])
+  const runProgressSync = useCallback(
+    async (resolution?: 'keep-local' | 'keep-remote') => {
+      const passphrase = normalizePassphrase(syncPassphrase)
+      if (!isValidSyncPassphrase(passphrase)) {
+        setSyncMessage({ tone: 'error', text: '口令至少 6 位。' })
+        return
+      }
 
-  const updateImportProgress = useCallback(({ totalRows, completedRows, done }: ImportProgress) => {
-    if (done) {
-      setIsImporting(false)
-      setImportProgress(100)
-      return true
-    }
-    if (totalRows) setImportProgress(Math.floor((completedRows / totalRows) * 100))
-    return true
-  }, [])
+      setIsSyncing(true)
+      setSyncConflict(undefined)
+      setSyncMessage(undefined)
 
-  const beginImport = useCallback(() => {
-    setImportProgress(0)
-    setIsImporting(true)
-  }, [])
+      try {
+        saveSyncPassphrase(passphrase)
+        const result = await syncProgress(passphrase, resolution)
 
-  const importData = useCallback(() => {
-    importDatabase(beginImport, updateImportProgress)
-  }, [beginImport, updateImportProgress])
+        if (result.status === 'restored') {
+          setSyncMessage({ tone: 'success', text: '已恢复云端进度，正在刷新…' })
+          window.setTimeout(() => window.location.reload(), 600)
+          return
+        }
+
+        if (result.status === 'conflict') {
+          setSyncConflict({ remoteUpdatedAt: result.remoteUpdatedAt })
+          setSyncMessage({ tone: 'info', text: '云端与本机都有进度，请选择保留哪一份。' })
+          return
+        }
+
+        setSyncMessage({ tone: 'success', text: '已上传本机进度。' })
+      } catch (error) {
+        console.error(error)
+        const message = error instanceof Error ? error.message : ''
+        setSyncMessage({
+          tone: 'error',
+          text:
+            message === 'missing_remote_progress'
+              ? '云端还没有这个口令的进度。'
+              : message.startsWith('progress_upload_failed:413')
+                ? '进度数据过大，暂时无法上传。'
+                : '同步失败，请检查网络后重试。',
+        })
+      } finally {
+        setIsSyncing(false)
+      }
+    },
+    [syncPassphrase],
+  )
 
   return (
     <Dialog open={open} onOpenChange={updateOpenState}>
@@ -750,39 +755,86 @@ export default function Setting({ open, onOpenChange }: { open: boolean; onOpenC
               </SectionContainer>
 
               {/* 8. 备份与恢复 */}
-              <SectionContainer id="sec-backup" title="备份与恢复" description="迁移练习记录、熟练度、章节进度与个性化设置。">
-                <div className="flex w-full flex-col divide-y divide-[var(--line)]">
-                  <DataAction
-                    title="导出备份"
-                    description="将当前设备上的完整数据保存为备份文件。"
-                    action={
-                      <button className="primary-button whitespace-nowrap" type="button" onClick={exportData} disabled={isExporting}>
-                        <Download className="h-4 w-4" />
-                        {isExporting ? '正在导出' : '导出数据'}
-                      </button>
-                    }
-                  >
-                    <ProgressLine label="导出进度" value={exportProgress} />
-                  </DataAction>
-
-                  <DataAction
-                    title="导入备份"
-                    description="从备份文件恢复练习记录与全部设置。"
-                    action={
-                      <button className="secondary-button whitespace-nowrap" type="button" onClick={importData} disabled={isImporting}>
-                        <Upload className="h-4 w-4" />
-                        {isImporting ? '正在导入' : '选择备份'}
-                      </button>
-                    }
-                  >
-                    <div className="space-y-3">
-                      <div className="flex items-start gap-2 text-xs leading-5 text-[var(--danger)]">
-                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                        <span>导入会覆盖当前练习记录与设置，并在完成后刷新页面。</span>
-                      </div>
-                      <ProgressLine label="导入进度" value={importProgress} />
+              <SectionContainer
+                id="sec-backup"
+                title="备份与恢复"
+                description="用一个口令在浏览器之间同步练习记录、熟练度、章节进度与个性化设置。"
+              >
+                <div className="flex w-full flex-col gap-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                      <label className={styles.blockLabel} htmlFor="sync-passphrase">
+                        同步口令
+                      </label>
+                      <input
+                        id="sync-passphrase"
+                        type="text"
+                        value={syncPassphrase}
+                        onChange={(event) => {
+                          setSyncPassphrase(event.target.value)
+                          setSyncConflict(undefined)
+                          setSyncMessage(undefined)
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' && canSync) void runProgressSync()
+                        }}
+                        placeholder="输入至少 6 位的口令"
+                        autoComplete="off"
+                        spellCheck={false}
+                        className="h-10 w-full rounded-md border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-sm font-medium text-[var(--ink)] transition-colors outline-none focus:border-[var(--primary)] focus:bg-[var(--surface-raised)]"
+                      />
                     </div>
-                  </DataAction>
+                    <button
+                      className="primary-button min-w-32 whitespace-nowrap"
+                      type="button"
+                      onClick={() => void runProgressSync()}
+                      disabled={!canSync}
+                    >
+                      <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                      {isSyncing ? '正在同步' : '同步进度'}
+                    </button>
+                  </div>
+
+                  <p className="text-xs leading-5 text-[var(--muted)]">
+                    在另一台设备输入同一口令并同步，即可继续同一份进度，云端与本机以较新的为准。口令只用于定位进度，请妥善保管。
+                    {localProgressUpdatedAt ? ` 本机上次更新：${new Date(localProgressUpdatedAt).toLocaleString('zh-CN')}。` : ''}
+                  </p>
+
+                  {syncMessage && (
+                    <p
+                      className={`text-xs leading-5 ${
+                        syncMessage.tone === 'error'
+                          ? 'text-[var(--danger)]'
+                          : syncMessage.tone === 'success'
+                            ? 'text-[var(--success)]'
+                            : 'text-[var(--body)]'
+                      }`}
+                    >
+                      {syncMessage.text}
+                      {syncConflict ? ` 云端更新于 ${new Date(syncConflict.remoteUpdatedAt).toLocaleString('zh-CN')}。` : ''}
+                    </p>
+                  )}
+
+                  {syncConflict && (
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        className="secondary-button min-h-9 px-3 text-xs"
+                        type="button"
+                        disabled={isSyncing}
+                        onClick={() => void runProgressSync('keep-remote')}
+                      >
+                        用云端进度覆盖本机
+                      </button>
+                      <button
+                        className="secondary-button min-h-9 px-3 text-xs"
+                        type="button"
+                        disabled={isSyncing}
+                        onClick={() => void runProgressSync('keep-local')}
+                      >
+                        用本机进度覆盖云端
+                      </button>
+                    </div>
+                  )}
                 </div>
               </SectionContainer>
             </div>

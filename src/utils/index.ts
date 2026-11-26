@@ -81,15 +81,6 @@ export function classNames(...classNames: Array<string | void | null>) {
   return finallyClassNames.join(' ')
 }
 
-export function getCurrentDate() {
-  const date = new Date()
-  const year = date.getFullYear()
-  const month = ('0' + (date.getMonth() + 1)).slice(-2)
-  const day = ('0' + date.getDate()).slice(-2)
-
-  return `${year}${month}${day}`
-}
-
 export function calcChapterCount(length: number, chapterLength = CHAPTER_LENGTH) {
   return Math.ceil(length / chapterLength)
 }

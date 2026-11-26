@@ -12,6 +12,7 @@ import {
   wordDictationConfigAtom,
 } from '@/store'
 import type { WordWithIndex } from '@/typings'
+import { markProgressUpdated } from '@/utils/db/progress-sync'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useRef } from 'react'
 
@@ -159,6 +160,7 @@ export function usePersistPracticeProgress(state: PracticeSessionState, words: W
       }
     })
 
+    markProgressUpdated()
     lastSavedRef.current = { key: saveKey, chapter: targetChapter, index: targetIndex }
   }, [
     currentChapter,

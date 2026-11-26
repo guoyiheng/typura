@@ -1,3 +1,4 @@
+import { markProgressUpdated } from './progress-sync'
 import type { IChapterRecord, IReviewRecord, IWordRecord, LetterMistakes } from './record'
 import { ChapterRecord, ReviewRecord, WordRecord } from './record'
 import { PracticeActionType, PracticeContext } from '@/pages/Practice/store'
@@ -62,6 +63,7 @@ export function useSaveChapterRecord() {
         wordRecordIds ?? [],
       )
       db.chapterRecords.add(chapterRecord)
+      markProgressUpdated()
     },
     [currentChapter, dictID, isRevision],
   )
@@ -102,6 +104,7 @@ export function useSaveWordRecord() {
       } catch (e) {
         console.error(e)
       }
+      markProgressUpdated()
       if (dispatch) {
         if (dbID > 0) {
           dispatch({ type: PracticeActionType.ADD_WORD_RECORD_ID, payload: dbID })
