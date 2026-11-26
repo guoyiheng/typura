@@ -13,11 +13,17 @@ export type ProgressSnapshot = {
 
 const SNAPSHOT_VERSION = 1
 
-export function collectLocalStorageData(): Record<string, string> {
+export type ProgressSnapshotOptions = {
+  updatedAt?: number
+  /** 只保存在本机、不进入快照的键 */
+  excludeKeys?: string[]
+}
+
+export function collectLocalStorageData(excludeKeys: string[] = []): Record<string, string> {
   const data: Record<string, string> = {}
   for (let index = 0; index < localStorage.length; index += 1) {
     const key = localStorage.key(index)
-    if (!key) continue
+    if (!key || excludeKeys.includes(key)) continue
     const value = localStorage.getItem(key)
     if (value !== null) data[key] = value
   }
@@ -45,7 +51,10 @@ export function parseProgressSnapshot(value: unknown): ProgressSnapshot | undefi
   }
 }
 
-export async function createProgressSnapshot(updatedAt = Date.now()): Promise<ProgressSnapshot> {
+export async function createProgressSnapshot({
+  excludeKeys = [],
+  updatedAt = Date.now(),
+}: ProgressSnapshotOptions = {}): Promise<ProgressSnapshot> {
   await import('dexie-export-import')
 
   const blob = await db.export()
@@ -54,7 +63,7 @@ export async function createProgressSnapshot(updatedAt = Date.now()): Promise<Pr
   return {
     version: SNAPSHOT_VERSION,
     updatedAt,
-    localStorageData: collectLocalStorageData(),
+    localStorageData: collectLocalStorageData(excludeKeys),
     dexieJson,
   }
 }

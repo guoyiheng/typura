@@ -145,7 +145,8 @@ async function uploadSnapshot(key: string, snapshot: ProgressSnapshot) {
 }
 
 async function uploadLocalProgress(key: string): Promise<ProgressSyncResult> {
-  const snapshot = await createProgressSnapshot()
+  // 口令本身只留在本机，不随快照上云。
+  const snapshot = await createProgressSnapshot({ excludeKeys: [SYNC_PASSPHRASE_KEY] })
   await uploadSnapshot(key, snapshot)
   markProgressUpdated(snapshot.updatedAt)
 
