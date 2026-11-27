@@ -8,6 +8,20 @@ export type DictionaryWordLocation = {
   wordIndex: number
 }
 
+export function createWordbookEntry(word: Word, dictionary: Dictionary, addedAt = Date.now()): WordbookEntry {
+  return {
+    word: word.name,
+    trans: word.trans,
+    usphone: word.usphone,
+    ukphone: word.ukphone,
+    dictId: dictionary.id,
+    dictName: dictionary.name,
+    language: dictionary.language,
+    languageCategory: dictionary.languageCategory,
+    addedAt,
+  }
+}
+
 export function wordbookEntryToWord(entry: WordbookEntry): Word {
   return {
     name: entry.word,

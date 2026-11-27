@@ -13,6 +13,7 @@ import WordbookButton from './components/WordbookButton'
 import { useConfetti } from './hooks/useConfetti'
 import { usePersistPracticeProgress, useRestorePracticeProgress } from './hooks/usePracticeProgress'
 import { useWordList } from './hooks/useWordList'
+import { useWordbookDictationBackfill } from './hooks/useWordbookCollector'
 import { PracticeActionType, PracticeContext, initialPracticeState, practiceReducer } from './store'
 import type { PracticeAction } from './store'
 import Header from '@/components/Header'
@@ -52,7 +53,7 @@ import { emitHotkeyAction, useHotkeyAction } from '@/utils/hotkeyBus'
 import type { HotkeyAction } from '@/utils/hotkeyBus'
 import { eventMatchesShortcut, formatShortcut, isEditableHotkeyTarget, isHotkeyRecorderEvent } from '@/utils/hotkeys'
 import { MASTERY_ANSWER_EXPOSED_EVENT } from '@/utils/mastery'
-import { getDictionaryWordLocation, getWordbookChapterCount } from '@/utils/wordbook'
+import { createWordbookEntry, getDictionaryWordLocation, getWordbookChapterCount } from '@/utils/wordbook'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { BookmarkMinus, BookmarkPlus, Languages, Minimize2 } from 'lucide-react'
 import type React from 'react'
@@ -91,6 +92,8 @@ const PracticePage: React.FC = () => {
   const [wordbookToast, setWordbookToast] = useState<{ message: string; tone: 'added' | 'removed' } | null>(null)
   const wordbookToastTimerRef = useRef<number | null>(null)
   const activeWord = state.chapterData.words[state.chapterData.index]
+
+  useWordbookDictationBackfill()
 
   const dispatch = useCallback(
     (action: PracticeAction) => {
@@ -210,25 +213,10 @@ const PracticePage: React.FC = () => {
     // 生词本里的单词都来自收藏，不需要再入库一次。
     if (isWordbookDict) return
 
-    setWordbook((entries) =>
-      upsertWordbookEntry(normalizeWordbookEntries(entries), {
-        word: word.name,
-        trans: word.trans,
-        usphone: word.usphone,
-        ukphone: word.ukphone,
-        dictId: currentResource.id,
-        dictName: currentResource.name,
-        language: currentResource.language,
-        languageCategory: currentResource.languageCategory,
-        addedAt: Date.now(),
-      }),
-    )
+    setWordbook((entries) => upsertWordbookEntry(normalizeWordbookEntries(entries), createWordbookEntry(word, currentResource)))
     showWordbookToast(`已将 ${word.name} 加入生词本`, 'added')
   }, [
-    currentResource.id,
-    currentResource.language,
-    currentResource.languageCategory,
-    currentResource.name,
+    currentResource,
     isWordbookDict,
     setWordbook,
     showWordbookToast,

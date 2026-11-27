@@ -6,9 +6,10 @@ import { TipAlert } from './TipAlert'
 import { initialWordAttempt } from './attemptState'
 import type { WordAttemptState } from './attemptState'
 import style from './index.module.css'
-import { EXPLICIT_SPACE } from '@/constants'
+import { EXPLICIT_SPACE, WORDBOOK_AUTO_DICTATION_COUNT } from '@/constants'
 import useKeySounds from '@/hooks/useKeySounds'
 import { generateWordSoundSrc } from '@/hooks/usePronunciation'
+import { useAddWordToWordbook } from '@/pages/Practice/hooks/useWordbookCollector'
 import { PracticeActionType, PracticeContext } from '@/pages/Practice/store'
 import {
   currentChapterAtom,
@@ -103,7 +104,9 @@ export default function WordComponent({
   const pronunciationConfig = useAtomValue(pronunciationConfigAtom)
 
   const restartAfterMistake = useAtomValue(restartOnWrongAtom)
+  const wordStats = useAtomValue(wordStatsAtom)
   const updateWordStats = useSetAtom(wordStatsAtom)
+  const addWordToWordbook = useAddWordToWordbook()
   const recordMasteryEvent = useSetAtom(recordMasteryEventAtom)
   const keyboardShortcuts = useAtomValue(hotkeysConfigAtom)
   const currentWordIndex = state.chapterData.index
@@ -633,6 +636,12 @@ export default function WordComponent({
 
       const isSuccessfulAttempt = attempt.mistakeCount === 0 && !masteryAnswerExposedRef.current
       recordMastery(isSuccessfulAttempt ? 'complete' : 'fail')
+
+      // 同一个单词默写到次数后自动收进生词本，便于之后集中复习。
+      const previousDictationCount = wordStats[word.name]?.dictationCount ?? 0
+      if (dictationSettings.isOpen && previousDictationCount + 1 === WORDBOOK_AUTO_DICTATION_COUNT) {
+        addWordToWordbook(word)
+      }
 
       updateWordStats((previousStats) => {
         const existingStats = previousStats[word.name] || {
