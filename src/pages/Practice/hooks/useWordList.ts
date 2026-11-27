@@ -15,6 +15,9 @@ export type UseWordListResult = {
   error: Error | undefined
 }
 
+/** 保持引用稳定：非生词本词典时，生词本变化不应该让词表重新生成。 */
+const EMPTY_WORDS: Word[] = []
+
 /**
  * Use word lists from the current selected dictionary.
  */
@@ -36,14 +39,18 @@ export function useWordList(): UseWordListResult {
 
   const { data: wordList, error, isLoading } = useSWR(isBookMode || isWordbookDict ? null : currentDictInfo.url, wordListFetcher)
 
+  const wordbookWords = useMemo(
+    () => (isWordbookDict ? wordbookEntries.map(wordbookEntryToWord) : EMPTY_WORDS),
+    [isWordbookDict, wordbookEntries],
+  )
+
   const words: WordWithIndex[] = useMemo(() => {
     let newWords: Word[]
     if (isReviewMode) {
       newWords = reviewRecord?.words ?? []
     } else if (isWordbookDict) {
       const chapter = getDictionaryChapter(currentDictInfo, currentChapter, chapterLength)
-      const allWords = wordbookEntries.map(wordbookEntryToWord)
-      newWords = chapter ? allWords.slice(chapter.start, chapter.end) : []
+      newWords = chapter ? wordbookWords.slice(chapter.start, chapter.end) : []
     } else if (isBookMode) {
       newWords = getBookChapterWords(currentDictInfo.id, currentChapter)
     } else if (wordList) {
@@ -59,7 +66,7 @@ export function useWordList(): UseWordListResult {
     isBookMode,
     isWordbookDict,
     wordList,
-    wordbookEntries,
+    wordbookWords,
     reviewRecord?.words,
     currentDictInfo,
     currentChapter,

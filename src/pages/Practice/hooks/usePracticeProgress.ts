@@ -18,6 +18,9 @@ import { useEffect, useRef } from 'react'
 
 const clampIndex = (index: number, wordsLength: number) => Math.max(0, Math.min(index, Math.max(wordsLength - 1, 0)))
 
+const getWordKey = (word: WordWithIndex) => `${word.index}:${word.name}`
+const getWordListSignature = (wordList: WordWithIndex[]) => wordList.map(getWordKey).join('|')
+
 export function useRestorePracticeProgress({
   words,
   dispatch,
@@ -44,18 +47,20 @@ export function useRestorePracticeProgress({
   const activeProgressMap = isDictationMode ? dictationProgress : learnProgress
   const currentProgress = activeProgressMap[currentDictId]
 
-  const initializedRef = useRef<{ sessionKey: string; words: WordWithIndex[]; restartCount: number } | undefined>(undefined)
+  const initializedRef = useRef<{ sessionKey: string; wordSignature: string; restartCount: number } | undefined>(undefined)
 
   useEffect(() => {
     if (words.length === 0) return
+
+    const wordSignature = getWordListSignature(words)
 
     if (isReviewMode) {
       const recordKey = reviewRecord?.id ?? reviewRecord?.createTime ?? 'unsaved'
       const sessionKey = `${currentDictId}:review:${recordKey}`
       const initialized = initializedRef.current
       const hasRestarted = initialized !== undefined && initialized.restartCount !== restartCount
-      if (initialized?.sessionKey === sessionKey && initialized.words === words) {
-        initializedRef.current = { sessionKey, words, restartCount }
+      if (initialized?.sessionKey === sessionKey && initialized.wordSignature === wordSignature) {
+        initializedRef.current = { sessionKey, wordSignature, restartCount }
         return
       }
 
@@ -68,7 +73,7 @@ export function useRestorePracticeProgress({
           initialIndex: hasRestarted ? 0 : clampIndex(reviewRecord?.index ?? 0, words.length),
         },
       })
-      initializedRef.current = { sessionKey, words, restartCount }
+      initializedRef.current = { sessionKey, wordSignature, restartCount }
       return
     }
 
@@ -84,8 +89,8 @@ export function useRestorePracticeProgress({
     const sessionKey = `${currentDictId}:${currentChapter}:${isDictationMode ? 'dictation' : 'learn'}`
     const initialized = initializedRef.current
     const hasRestarted = initialized !== undefined && initialized.restartCount !== restartCount
-    if (initialized?.sessionKey === sessionKey && initialized.words === words) {
-      initializedRef.current = { sessionKey, words, restartCount }
+    if (initialized?.sessionKey === sessionKey && initialized.wordSignature === wordSignature) {
+      initializedRef.current = { sessionKey, wordSignature, restartCount }
       return
     }
 
@@ -100,7 +105,7 @@ export function useRestorePracticeProgress({
         initialIndex: clampIndex(initialIndex, words.length),
       },
     })
-    initializedRef.current = { sessionKey, words, restartCount }
+    initializedRef.current = { sessionKey, wordSignature, restartCount }
   }, [
     chapterLength,
     currentChapter,
@@ -135,8 +140,9 @@ export function usePersistPracticeProgress(state: PracticeSessionState, words: W
   const lastSavedRef = useRef<{ key: string; index: number; chapter: number } | undefined>(undefined)
 
   useEffect(() => {
+    const currentWordKeys = new Set(words.map(getWordKey))
     const isCurrentWordList =
-      state.chapterData.words.length === words.length && state.chapterData.words.every((word) => words.includes(word))
+      state.chapterData.words.length === words.length && state.chapterData.words.every((word) => currentWordKeys.has(getWordKey(word)))
     if (isReviewMode || words.length === 0 || !isCurrentWordList) return
 
     const targetChapter = currentChapter
