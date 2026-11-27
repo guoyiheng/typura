@@ -6,7 +6,7 @@ import { TipAlert } from './TipAlert'
 import { initialWordAttempt } from './attemptState'
 import type { WordAttemptState } from './attemptState'
 import style from './index.module.css'
-import { EXPLICIT_SPACE, WORDBOOK_AUTO_DICTATION_COUNT } from '@/constants'
+import { EXPLICIT_SPACE, WORDBOOK_AUTO_HINT_COUNT } from '@/constants'
 import useKeySounds from '@/hooks/useKeySounds'
 import { generateWordSoundSrc } from '@/hooks/usePronunciation'
 import { useAddWordToWordbook } from '@/pages/Practice/hooks/useWordbookCollector'
@@ -104,9 +104,9 @@ export default function WordComponent({
   const pronunciationConfig = useAtomValue(pronunciationConfigAtom)
 
   const restartAfterMistake = useAtomValue(restartOnWrongAtom)
-  const wordStats = useAtomValue(wordStatsAtom)
   const updateWordStats = useSetAtom(wordStatsAtom)
   const addWordToWordbook = useAddWordToWordbook()
+  const hintPressCountRef = useRef(0)
   const recordMasteryEvent = useSetAtom(recordMasteryEventAtom)
   const keyboardShortcuts = useAtomValue(hotkeysConfigAtom)
   const currentWordIndex = state.chapterData.index
@@ -247,6 +247,7 @@ export default function WordComponent({
     const nextAttempt = createWordAttempt(word)
     completionHandledRef.current = false
     masteryAnswerExposedRef.current = false
+    hintPressCountRef.current = 0
     updateAttempt(nextAttempt)
     setRevealedThroughIndex(-1)
   }, [word, updateAttempt])
@@ -407,6 +408,12 @@ export default function WordComponent({
     if (dictationSettings.isOpen && currentLength < attempt.targetText.length) {
       masteryAnswerExposedRef.current = true
       recordMastery('expose')
+
+      // 默写时反复用提示找答案，说明这个单词还没记牢，达到次数后收进生词本。
+      hintPressCountRef.current += 1
+      if (hintPressCountRef.current === WORDBOOK_AUTO_HINT_COUNT) {
+        addWordToWordbook(word)
+      }
     }
     setRevealedThroughIndex((previousIndex) => {
       if (previousIndex < currentLength) {
@@ -414,7 +421,15 @@ export default function WordComponent({
       }
       return previousIndex + 1
     })
-  }, [attempt.isComplete, attempt.targetText.length, attempt.typedText.length, dictationSettings.isOpen, recordMastery])
+  }, [
+    addWordToWordbook,
+    attempt.isComplete,
+    attempt.targetText.length,
+    attempt.typedText.length,
+    dictationSettings.isOpen,
+    recordMastery,
+    word,
+  ])
 
   useHotkeyAction('hint', revealNextCharacter)
 
@@ -636,12 +651,6 @@ export default function WordComponent({
 
       const isSuccessfulAttempt = attempt.mistakeCount === 0 && !masteryAnswerExposedRef.current
       recordMastery(isSuccessfulAttempt ? 'complete' : 'fail')
-
-      // 同一个单词默写到次数后自动收进生词本，便于之后集中复习。
-      const previousDictationCount = wordStats[word.name]?.dictationCount ?? 0
-      if (dictationSettings.isOpen && previousDictationCount + 1 === WORDBOOK_AUTO_DICTATION_COUNT) {
-        addWordToWordbook(word)
-      }
 
       updateWordStats((previousStats) => {
         const existingStats = previousStats[word.name] || {

@@ -13,7 +13,6 @@ import WordbookButton from './components/WordbookButton'
 import { useConfetti } from './hooks/useConfetti'
 import { usePersistPracticeProgress, useRestorePracticeProgress } from './hooks/usePracticeProgress'
 import { useWordList } from './hooks/useWordList'
-import { useWordbookDictationBackfill } from './hooks/useWordbookCollector'
 import { PracticeActionType, PracticeContext, initialPracticeState, practiceReducer } from './store'
 import type { PracticeAction } from './store'
 import Header from '@/components/Header'
@@ -92,8 +91,6 @@ const PracticePage: React.FC = () => {
   const [wordbookToast, setWordbookToast] = useState<{ message: string; tone: 'added' | 'removed' } | null>(null)
   const wordbookToastTimerRef = useRef<number | null>(null)
   const activeWord = state.chapterData.words[state.chapterData.index]
-
-  useWordbookDictationBackfill()
 
   const dispatch = useCallback(
     (action: PracticeAction) => {
